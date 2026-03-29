@@ -1,0 +1,483 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using Terraria;
+using Terraria.GameContent.ItemDropRules;
+using Terraria.ID;
+using Terraria.ModLoader;
+using Terraria.UI;
+using CraftPathOptimizer.Content.Graph;
+
+namespace CraftPathOptimizer.Common.Systems;
+
+/// <summary>
+/// Indexes all non-crafting item sources (NPC drops, shops) so the UI can show
+/// "Drop: Zombie (1/50)" or "Buy: Merchant" for raw materials.
+/// </summary>
+public class ItemSourceSystem : ModSystem
+{
+	private Dictionary<int, List<ItemSource>> _sourcesByItem;
+
+	public List<ItemSource> GetSources(int itemType)
+	{
+		if (_sourcesByItem != null && _sourcesByItem.TryGetValue(itemType, out var sources))
+			return sources;
+
+		// Fallback: try to infer source from item properties
+		return InferSourceFromItem(itemType);
+	}
+
+	/// <summary>
+	/// For items with no indexed sources, tries to infer how to obtain them
+	/// from item name patterns and tooltip text.
+	/// </summary>
+	private static List<ItemSource> InferSourceFromItem(int itemType)
+	{
+		if (itemType <= ItemID.None)
+			return [];
+
+		try
+		{
+			var item = ContentSamples.ItemsByType.GetValueOrDefault(itemType);
+			if (item == null)
+				return [];
+
+			string name = (item.Name ?? "").ToLowerInvariant();
+
+			// Ore items — likely mined
+			if (name.Contains("ore"))
+				return [new ItemSource(ItemSourceType.Gathering, $"Mine: {item.Name}")];
+
+			// Bar items — likely smelted from ore
+			if (name.Contains(" bar"))
+				return [new ItemSource(ItemSourceType.Gathering, $"Smelt: {item.Name} (check recipe)")];
+
+			// Check tooltip for hints
+			if (item.ToolTip != null && item.ToolTip != Terraria.UI.ItemTooltip.None)
+			{
+				for (int i = 0; i < item.ToolTip.Lines; i++)
+				{
+					string line = item.ToolTip.GetLine(i);
+					if (string.IsNullOrEmpty(line)) continue;
+					string lower = line.ToLowerInvariant();
+
+					// Common tooltip patterns from mods
+					if (lower.Contains("drop") || lower.Contains("defeat") || lower.Contains("boss"))
+						return [new ItemSource(ItemSourceType.BossDrop, line)];
+					if (lower.Contains("mine") || lower.Contains("found in") || lower.Contains("underground"))
+						return [new ItemSource(ItemSourceType.Gathering, line)];
+					if (lower.Contains("fish") || lower.Contains("caught"))
+						return [new ItemSource(ItemSourceType.Fishing, line)];
+				}
+			}
+
+			// Material items — generic hint
+			if (item.material)
+				return [new ItemSource(ItemSourceType.Other, $"Material: {item.Name} (check wiki)")];
+		}
+		catch { }
+
+		return [];
+	}
+
+	public override void PostSetupContent()
+	{
+		if (Main.dedServ)
+			return;
+
+		_sourcesByItem = [];
+		IndexNPCDrops();
+		IndexNPCShops();
+		IndexItemDrops();
+		IndexGatheringSources();
+
+		Mod.Logger.Info($"Indexed item sources for {_sourcesByItem.Count} items");
+	}
+
+	public override void Unload()
+	{
+		_sourcesByItem = null;
+	}
+
+	private void IndexNPCDrops()
+	{
+		for (int npcId = NPCID.NegativeIDCount; npcId < NPCLoader.NPCCount; npcId++)
+		{
+			// Skip invalid IDs
+			if (npcId == 0)
+				continue;
+
+			List<IItemDropRule> rules;
+			try
+			{
+				rules = Main.ItemDropsDB.GetRulesForNPCID(npcId, includeGlobalDrops: true);
+			}
+			catch
+			{
+				continue;
+			}
+
+			if (rules == null)
+				continue;
+
+			bool isBoss = IsNPCBoss(npcId);
+			string npcName;
+			try { npcName = Lang.GetNPCNameValue(npcId); }
+			catch { npcName = $"NPC#{npcId}"; }
+
+			foreach (var rule in rules)
+				ExtractDropsFromRule(rule, npcId, npcName, isBoss);
+		}
+	}
+
+	private void ExtractDropsFromRule(IItemDropRule rule, int npcId, string npcName, bool isBoss)
+	{
+		switch (rule)
+		{
+			case CommonDrop common:
+				AddSource(common.itemId, new ItemSource(
+					isBoss ? ItemSourceType.BossDrop : ItemSourceType.NPCDrop,
+					$"Drop: {npcName}" + (common.chanceDenominator > 1 ? $" (1/{common.chanceDenominator})" : ""),
+					npcId,
+					1f / common.chanceDenominator));
+				break;
+
+			case OneFromOptionsNotScaledWithLuckDropRule oneFromOptions:
+				foreach (int itemId in oneFromOptions.dropIds)
+					AddSource(itemId, new ItemSource(
+						isBoss ? ItemSourceType.BossDrop : ItemSourceType.NPCDrop,
+						$"Drop: {npcName}",
+						npcId));
+				break;
+
+			case OneFromOptionsDropRule oneFromOptions:
+				foreach (int itemId in oneFromOptions.dropIds)
+					AddSource(itemId, new ItemSource(
+						isBoss ? ItemSourceType.BossDrop : ItemSourceType.NPCDrop,
+						$"Drop: {npcName}",
+						npcId));
+				break;
+
+			case DropBasedOnExpertMode expertDrop:
+				ExtractDropsFromRule(expertDrop.ruleForNormalMode, npcId, npcName, isBoss);
+				ExtractDropsFromRule(expertDrop.ruleForExpertMode, npcId, npcName, isBoss);
+				break;
+
+			case DropBasedOnMasterMode masterDrop:
+				ExtractDropsFromRule(masterDrop.ruleForDefault, npcId, npcName, isBoss);
+				ExtractDropsFromRule(masterDrop.ruleForMasterMode, npcId, npcName, isBoss);
+				break;
+
+			case LeadingConditionRule condRule:
+				foreach (var chained in condRule.ChainedRules)
+					ExtractDropsFromRule(chained.RuleToChain, npcId, npcName, isBoss);
+				break;
+
+			default:
+				// Reflection fallback: try to find itemId-like fields on unknown rule types.
+				// This catches modded drop rules that follow the convention of having an
+				// 'itemId' or 'itemType' field but use a custom IItemDropRule implementation.
+				TryExtractViaReflection(rule, npcId, npcName, isBoss);
+				break;
+		}
+
+		// Traverse chained rules on any rule type
+		if (rule.ChainedRules != null)
+		{
+			foreach (var chained in rule.ChainedRules)
+				ExtractDropsFromRule(chained.RuleToChain, npcId, npcName, isBoss);
+		}
+	}
+
+	private void IndexNPCShops()
+	{
+		foreach (var shop in NPCShopDatabase.AllShops)
+		{
+			if (shop is not NPCShop npcShop)
+				continue;
+
+			string shopOwner = Lang.GetNPCNameValue(npcShop.NpcType);
+
+			foreach (var entry in npcShop.Entries)
+			{
+				if (entry.Item.type <= ItemID.None)
+					continue;
+
+				AddSource(entry.Item.type, new ItemSource(
+					ItemSourceType.NPCShop,
+					$"Buy: {shopOwner}",
+					npcShop.NpcType));
+			}
+		}
+	}
+
+	/// <summary>
+	/// Indexes drops from treasure bags, fishing crates, and other grab-bag items
+	/// via Main.ItemDropsDB.GetRulesForItemID().
+	/// </summary>
+	private void IndexItemDrops()
+	{
+		foreach (var (itemType, item) in ContentSamples.ItemsByType)
+		{
+			if (itemType <= ItemID.None)
+				continue;
+
+			// Check boss bags and grab-bag items
+			bool isBossBag = itemType < ItemID.Sets.BossBag.Length && ItemID.Sets.BossBag[itemType];
+			bool isCrate = itemType < ItemID.Sets.IsFishingCrate.Length && ItemID.Sets.IsFishingCrate[itemType];
+			bool isGrabBag = isBossBag || isCrate;
+
+			if (!isGrabBag)
+				continue;
+
+			List<IItemDropRule> rules;
+			try
+			{
+				rules = Main.ItemDropsDB.GetRulesForItemID(itemType);
+			}
+			catch { continue; }
+
+			if (rules == null || rules.Count == 0)
+				continue;
+
+			string sourceName = item.Name ?? $"Item#{itemType}";
+			string sourceType = isBossBag ? "Open" : isCrate ? "Fish" : "Open";
+			var srcType = isBossBag ? ItemSourceType.BagDrop : isCrate ? ItemSourceType.Fishing : ItemSourceType.Other;
+
+			foreach (var rule in rules)
+				ExtractDropsFromItemRule(rule, itemType, $"{sourceType}: {sourceName}", srcType);
+		}
+	}
+
+	private void ExtractDropsFromItemRule(IItemDropRule rule, int sourceItemType, string description, ItemSourceType srcType)
+	{
+		switch (rule)
+		{
+			case CommonDrop common:
+				string rateText = common.chanceDenominator > 1 ? $" (1/{common.chanceDenominator})" : "";
+				AddSource(common.itemId, new ItemSource(srcType, $"{description}{rateText}", sourceItemType,
+					1f / common.chanceDenominator));
+				break;
+			case OneFromOptionsDropRule oneFrom:
+				foreach (int id in oneFrom.dropIds)
+					AddSource(id, new ItemSource(srcType, description, sourceItemType));
+				break;
+			case OneFromOptionsNotScaledWithLuckDropRule oneFrom:
+				foreach (int id in oneFrom.dropIds)
+					AddSource(id, new ItemSource(srcType, description, sourceItemType));
+				break;
+		}
+
+		if (rule.ChainedRules != null)
+			foreach (var chained in rule.ChainedRules)
+				ExtractDropsFromItemRule(chained.RuleToChain, sourceItemType, description, srcType);
+	}
+
+	private void AddSource(int itemType, ItemSource source)
+	{
+		if (itemType <= ItemID.None)
+			return;
+
+		if (!_sourcesByItem.TryGetValue(itemType, out var list))
+		{
+			list = [];
+			_sourcesByItem[itemType] = list;
+		}
+
+		// Avoid duplicate sources — check entity ID and also NPC name
+		// (catches NPC variants like Hornet/Big Hornet/Little Hornet)
+		foreach (var existing in list)
+		{
+			if (existing.Type != source.Type)
+				continue;
+
+			if (existing.SourceEntityId == source.SourceEntityId)
+				return;
+
+			// Dedup by NPC display name (strip "Drop: " prefix and rate suffix)
+			if (existing.Type == ItemSourceType.NPCDrop || existing.Type == ItemSourceType.BossDrop)
+			{
+				string existName = ExtractNPCName(existing.Description);
+				string newName = ExtractNPCName(source.Description);
+				if (!string.IsNullOrEmpty(existName) && existName == newName)
+				{
+					// Keep the one with the better (higher) drop rate
+					if (source.DropRate > existing.DropRate)
+					{
+						list.Remove(existing);
+						break; // Will add the new one below
+					}
+					return; // Keep existing
+				}
+			}
+		}
+
+		list.Add(source);
+	}
+
+	/// <summary>
+	/// Adds static sources for common gathering/mining materials that aren't
+	/// in drop tables or shops. These are world-gen items the player mines or finds.
+	/// </summary>
+	/// <summary>
+	/// Only items that are purely mined/gathered from the world and have NO presence
+	/// in NPC drop tables or shops. Anything that drops from mobs is already covered
+	/// by IndexNPCDrops. Anything sold by NPCs is covered by IndexNPCShops.
+	/// </summary>
+	private void IndexGatheringSources()
+	{
+		// Ores — mined from the world, never in drop tables
+		AddGathering(ItemID.CopperOre, "Mine: Underground");
+		AddGathering(ItemID.TinOre, "Mine: Underground");
+		AddGathering(ItemID.IronOre, "Mine: Underground");
+		AddGathering(ItemID.LeadOre, "Mine: Underground");
+		AddGathering(ItemID.SilverOre, "Mine: Underground");
+		AddGathering(ItemID.TungstenOre, "Mine: Underground");
+		AddGathering(ItemID.GoldOre, "Mine: Underground / Cavern");
+		AddGathering(ItemID.PlatinumOre, "Mine: Underground / Cavern");
+		AddGathering(ItemID.Meteorite, "Mine: Meteorite crash site");
+		AddGathering(ItemID.Hellstone, "Mine: Underworld");
+		AddGathering(ItemID.Obsidian, "Mine: Where water meets lava");
+		AddGathering(ItemID.CobaltOre, "Mine: Underground (Hardmode)");
+		AddGathering(ItemID.PalladiumOre, "Mine: Underground (Hardmode)");
+		AddGathering(ItemID.MythrilOre, "Mine: Underground (Hardmode)");
+		AddGathering(ItemID.OrichalcumOre, "Mine: Underground (Hardmode)");
+		AddGathering(ItemID.AdamantiteOre, "Mine: Underground (Hardmode)");
+		AddGathering(ItemID.TitaniumOre, "Mine: Underground (Hardmode)");
+		AddGathering(ItemID.ChlorophyteOre, "Mine: Underground Jungle (Hardmode)");
+		AddGathering(ItemID.LunarOre, "Mine: After Moon Lord defeat");
+
+		// Gems — mined, not dropped
+		AddGathering(ItemID.Amethyst, "Mine: Underground");
+		AddGathering(ItemID.Topaz, "Mine: Underground");
+		AddGathering(ItemID.Sapphire, "Mine: Underground");
+		AddGathering(ItemID.Emerald, "Mine: Underground");
+		AddGathering(ItemID.Ruby, "Mine: Underground");
+		AddGathering(ItemID.Diamond, "Mine: Underground");
+		AddGathering(ItemID.Amber, "Mine: Underground Desert");
+
+		// Wood — chopped, not dropped
+		AddGathering(ItemID.Wood, "Chop: Trees (Forest)");
+		AddGathering(ItemID.BorealWood, "Chop: Trees (Snow)");
+		AddGathering(ItemID.PalmWood, "Chop: Trees (Ocean/Desert)");
+		AddGathering(ItemID.RichMahogany, "Chop: Trees (Jungle)");
+		AddGathering(ItemID.Ebonwood, "Chop: Trees (Corruption)");
+		AddGathering(ItemID.Shadewood, "Chop: Trees (Crimson)");
+		AddGathering(ItemID.Pearlwood, "Chop: Trees (Hallow)");
+
+		// Block/terrain materials — dug, not dropped
+		AddGathering(ItemID.SandBlock, "Dig: Desert / Ocean");
+		AddGathering(ItemID.StoneBlock, "Dig: Everywhere underground");
+		AddGathering(ItemID.DirtBlock, "Dig: Everywhere");
+		AddGathering(ItemID.ClayBlock, "Dig: Surface / Underground");
+		AddGathering(ItemID.SiltBlock, "Dig: Underground");
+
+		// Gathered from world objects — not in drop tables
+		AddGathering(ItemID.Cobweb, "Gather: Spider caves / Underground");
+		AddGathering(ItemID.JungleSpores, "Gather: Underground Jungle (glowing plants)");
+		AddGathering(ItemID.Coral, "Gather: Ocean floor");
+		AddGathering(ItemID.Cactus, "Chop: Desert cactus");
+		AddGathering(ItemID.FallenStar, "Gather: Surface at night (falls from sky)");
+	}
+
+	private void AddGathering(int itemType, string description)
+	{
+		AddSource(itemType, new ItemSource(ItemSourceType.Gathering, description));
+	}
+
+	/// <summary>Extracts NPC name from a source description like "Drop: Hornet (1/3)" → "Hornet"</summary>
+	private static string ExtractNPCName(string description)
+	{
+		if (string.IsNullOrEmpty(description))
+			return null;
+		// Strip "Drop: " or "Buy: " prefix
+		int colonIdx = description.IndexOf(": ");
+		string name = colonIdx >= 0 ? description[(colonIdx + 2)..] : description;
+		// Strip rate suffix like " (1/3)"
+		int parenIdx = name.IndexOf(" (");
+		if (parenIdx > 0)
+			name = name[..parenIdx];
+		return name.Trim();
+	}
+
+	/// <summary>
+	/// Reflection fallback for unrecognized IItemDropRule implementations.
+	/// Looks for fields named 'itemId', 'itemType', or 'dropId' and extracts
+	/// integer values that look like item IDs.
+	/// </summary>
+	private void TryExtractViaReflection(IItemDropRule rule, int npcId, string npcName, bool isBoss)
+	{
+		try
+		{
+			var type = rule.GetType();
+			string[] fieldNames = ["itemId", "itemType", "dropId", "ItemId", "ItemType"];
+
+			foreach (string fieldName in fieldNames)
+			{
+				var field = type.GetField(fieldName, BindingFlags.Public | BindingFlags.Instance);
+				if (field != null && field.FieldType == typeof(int))
+				{
+					int itemId = (int)field.GetValue(rule);
+					if (itemId > ItemID.None)
+					{
+						AddSource(itemId, new ItemSource(
+							isBoss ? ItemSourceType.BossDrop : ItemSourceType.NPCDrop,
+							$"Drop: {npcName}",
+							npcId));
+					}
+					return;
+				}
+			}
+
+			// Also check for dropIds array (int[])
+			foreach (string fieldName in (string[])["dropIds", "DropIds", "itemIds"])
+			{
+				var field = type.GetField(fieldName, BindingFlags.Public | BindingFlags.Instance);
+				if (field != null && field.FieldType == typeof(int[]))
+				{
+					var ids = (int[])field.GetValue(rule);
+					if (ids != null)
+					{
+						foreach (int itemId in ids)
+						{
+							if (itemId > ItemID.None)
+								AddSource(itemId, new ItemSource(
+									isBoss ? ItemSourceType.BossDrop : ItemSourceType.NPCDrop,
+									$"Drop: {npcName}",
+									npcId));
+						}
+					}
+					return;
+				}
+			}
+		}
+		catch
+		{
+			// Reflection failed — silently ignore this rule
+		}
+	}
+
+	private static bool IsNPCBoss(int npcId)
+	{
+		try
+		{
+			// Check vanilla boss set (only for positive IDs within array bounds)
+			var bossSet = NPCID.Sets.ShouldBeCountedAsBoss;
+			if (npcId > 0 && npcId < bossSet.Length)
+				return bossSet[npcId];
+
+			// Modded or variant NPCs: check via NPC defaults
+			// Skip negative IDs (vanilla variants) — they're never bosses
+			if (npcId <= 0)
+				return false;
+
+			var npc = new NPC();
+			npc.SetDefaults(npcId);
+			return npc.boss;
+		}
+		catch
+		{
+			return false;
+		}
+	}
+}

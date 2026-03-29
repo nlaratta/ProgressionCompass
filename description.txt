@@ -1,0 +1,13 @@
+Craft Path Optimizer computes the optimal crafting path for any item in the game.
+
+Select a target item and instantly see:
+- Full dependency tree from raw materials to final product
+- Material checklist showing what you own vs. what you need
+- Where to get missing materials (drops, shops, fishing, etc.)
+- Step-by-step crafting order
+
+Works automatically with all loaded mods (Calamity, Thorium, etc.).
+Scans your full inventory, banks, equipment, and optionally nearby chests.
+Queue multiple targets to see a unified material list.
+
+Client-side only — no server impact in multiplayer.

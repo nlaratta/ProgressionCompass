@@ -1,0 +1,79 @@
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Terraria;
+using Terraria.ModLoader;
+using Terraria.UI;
+using CraftPathOptimizer.UI;
+
+namespace CraftPathOptimizer.Common.Systems;
+
+/// <summary>
+/// Manages the UI lifecycle: creates the UserInterface and UIState,
+/// handles per-frame updates, and inserts our draw layer into
+/// Terraria's rendering pipeline.
+/// </summary>
+public class CraftPathUISystem : ModSystem
+{
+	internal UserInterface CraftPathInterface;
+	internal CraftPathState CraftPathUI;
+	private GameTime _lastGameTime;
+
+	public bool IsVisible => CraftPathInterface?.CurrentState != null;
+
+	public override void Load()
+	{
+		if (Main.dedServ)
+			return;
+
+		CraftPathInterface = new UserInterface();
+		CraftPathUI = new CraftPathState();
+		CraftPathUI.Activate();
+	}
+
+	public override void Unload()
+	{
+		CraftPathUI = null;
+		CraftPathInterface = null;
+	}
+
+	public void ToggleUI()
+	{
+		if (IsVisible)
+		{
+			CraftPathInterface.SetState(null);
+			// Close upgrade recommendations window when main panel closes
+			ModContent.GetInstance<UpgradeWindowSystem>()?.Close();
+		}
+		else
+		{
+			CraftPathInterface.SetState(CraftPathUI);
+		}
+	}
+
+	public override void UpdateUI(GameTime gameTime)
+	{
+		_lastGameTime = gameTime;
+		if (CraftPathInterface?.CurrentState != null)
+			CraftPathInterface.Update(gameTime);
+	}
+
+	public override void ModifyInterfaceLayers(List<GameInterfaceLayer> layers)
+	{
+		// Insert our UI just before the vanilla mouse text layer
+		int mouseTextIndex = layers.FindIndex(
+			layer => layer.Name.Equals("Vanilla: Mouse Text"));
+
+		if (mouseTextIndex != -1)
+		{
+			layers.Insert(mouseTextIndex, new LegacyGameInterfaceLayer(
+				"CraftPathOptimizer: Craft Path UI",
+				delegate
+				{
+					if (CraftPathInterface?.CurrentState != null)
+						CraftPathInterface.Draw(Main.spriteBatch, _lastGameTime);
+					return true;
+				},
+				InterfaceScaleType.UI));
+		}
+	}
+}

@@ -1,0 +1,5 @@
+displayName = Craft Path Optimizer
+author = NoahLaratta
+version = 0.1.0
+side = Client
+buildIgnore = *.csproj, *.user, *.sln, .vs/*, bin/*, obj/*, .git/*, .gitignore, PLAN.md

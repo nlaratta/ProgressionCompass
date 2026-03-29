@@ -1,0 +1,63 @@
+namespace CraftPathOptimizer.Content.Graph;
+
+public enum ItemSourceType
+{
+	NPCDrop,
+	BossDrop,
+	NPCShop,
+	BagDrop,
+	Fishing,
+	ChestLoot,
+	Gathering,
+	Event,
+	Other
+}
+
+/// <summary>
+/// Describes one way to obtain an item outside of crafting.
+/// A single item can have multiple sources (e.g., Iron Ore drops from multiple NPCs
+/// and can be mined).
+/// </summary>
+public record ItemSource(
+	ItemSourceType Type,
+	string Description,
+	int SourceEntityId = -1,
+	float DropRate = -1f)
+{
+	/// <summary>
+	/// Scores this source for ranking. Higher = more desirable to show as primary.
+	/// Used by ActionClassifier and tree view to pick the best source to display.
+	/// </summary>
+	public int RecommendationScore => Type switch
+	{
+		ItemSourceType.BossDrop => DropRate >= 1f ? 110 : 60,
+		ItemSourceType.NPCShop => 100,
+		ItemSourceType.BagDrop => DropRate >= 1f ? 90 : 55,
+		ItemSourceType.NPCDrop => DropRate >= 0.1f ? 80 : 50,
+		ItemSourceType.Gathering => 70,
+		ItemSourceType.Event => 45,
+		ItemSourceType.Fishing => 40,
+		ItemSourceType.ChestLoot => 30,
+		_ => 0
+	};
+
+	/// <summary>Picks the best source from a list by recommendation score.</summary>
+	public static ItemSource PickBest(System.Collections.Generic.List<ItemSource> sources)
+	{
+		if (sources == null || sources.Count == 0) return null;
+		if (sources.Count == 1) return sources[0];
+
+		var best = sources[0];
+		int bestScore = best.RecommendationScore;
+		for (int i = 1; i < sources.Count; i++)
+		{
+			int score = sources[i].RecommendationScore;
+			if (score > bestScore || (score == bestScore && sources[i].DropRate > best.DropRate))
+			{
+				best = sources[i];
+				bestScore = score;
+			}
+		}
+		return best;
+	}
+}

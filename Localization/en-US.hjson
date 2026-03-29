@@ -1,0 +1,103 @@
+Mods: {
+	CraftPathOptimizer: {
+		Keybinds: {
+			ToggleCraftPath.DisplayName: Toggle Craft Path
+			"Toggle Craft Path.DisplayName": Toggle  Craft  Path
+		}
+
+		Configs: {
+			CraftPathConfig: {
+				DisplayName: Craft Path Optimizer
+
+				Headers: {
+					InventoryScanning: Inventory Scanning
+					Search: Search
+					Display: Display
+				}
+
+				ChestScanRange: {
+					Label: Chest Scan Range (tiles)
+					Tooltip: Maximum distance in tiles to scan nearby chests. 50 covers a typical storage room.
+				}
+
+				ChestScanDefault: {
+					Label: Scan Chests by Default
+					Tooltip: When enabled, chest scanning starts ON when the UI opens.
+				}
+
+				MaxSearchResults: {
+					Label: Max Search Results
+					Tooltip: Maximum number of items shown in search results.
+				}
+
+				DefaultTab: {
+					Label: Default Tab
+					Tooltip: Which tab to show when the UI opens.
+				}
+
+				AutoExpandTree: {
+					Label: Auto-Expand Tree
+					Tooltip: When enabled, the dependency tree starts fully expanded.
+				}
+			}
+
+			TabOption: {
+				Tooltip: ""
+
+				Materials: {
+					Label: Materials
+					Tooltip: ""
+				}
+
+				Tree: {
+					Label: Tree
+					Tooltip: ""
+				}
+
+				CraftOrder: {
+					Label: Craft Order
+					Tooltip: ""
+				}
+			}
+		}
+
+		UI: {
+			Title: Craft Path Optimizer
+			SearchPlaceholder: Search items...
+			TabTree: Tree
+			TabMaterials: Materials
+			TabCraftOrder: Craft Order
+			AddTarget: + Add Target
+			ChestsOn: Chests: ON
+			ChestsOff: Chests: OFF
+			Refresh: Refresh
+			MaterialsNeeded: Materials Needed
+			Owned: Owned
+			Missing: Missing
+			Done: DONE
+			NeedMore: Need {0} more
+			InInventory: "{0} in inventory"
+			InChest: "{0} in chest"
+			Equipped: equipped
+			EquippedWarning: Currently equipped
+			StepFormat: Step {0}: Craft {1}x {2}
+			StationFormat: Station: {0}
+			FromStep: from Step {0}
+			NeedToAcquire: need to acquire
+			SourceDrop: Drop: {0}
+			SourceBossDrop: Drop: {0}
+			SourceShop: Buy: {0}
+			SourceFishing: Fish: {0}
+			SourceChest: Found in: {0}
+			SourceGathering: Mine: {0}
+			SourceEvent: Event: {0}
+			SourceUnknown: Unknown source
+			NoRecipe: No recipe found
+			Computing: Computing craft path...
+			TotalNeeded: Total: {0} types, {1} items
+			OwnedSummary: Owned: {0} types ({1}%)
+			MissingSummary: Missing: {0} types
+			Conditional: Requires: {0}
+		}
+	}
+}
