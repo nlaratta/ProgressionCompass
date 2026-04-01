@@ -105,19 +105,23 @@ public static class ClassDetector
 
 	/// <summary>
 	/// Checks if an item matches a class filter. Covers weapons (via DamageType),
-	/// armor (via name-based heuristic for class-specific variants), and accessories
-	/// (via stat boosts). Generic/universal items match all classes.
+	/// armor (via tooltip scanning), and accessories (via tooltip scanning).
 	/// </summary>
-	public static bool ItemMatchesClass(Item item, PlayerClass playerClass)
+	/// <param name="strict">When true, generic/unclassified armor and accessories
+	/// only match Mixed (All), not specific class filters. Use strict=true for
+	/// the Upgrades window to avoid showing generic cobalt armor under Summoner.</param>
+	public static bool ItemMatchesClass(Item item, PlayerClass playerClass, bool strict = false)
 	{
 		if (playerClass == PlayerClass.Mixed)
 			return true;
 
+		// Ammo: only relevant to Ranged
+		if (item.ammo > 0)
+			return playerClass == PlayerClass.Ranged;
+
 		// Weapons: check DamageType
-		if (item.damage > 0 && item.ammo == 0)
+		if (item.damage > 0)
 		{
-			// Special case: whips use SummonMeleeSpeed which does NOT
-			// CountsAsClass(Summon), but they're summoner weapons
 			bool isWhip = item.DamageType == DamageClass.SummonMeleeSpeed;
 
 			return playerClass switch
@@ -131,19 +135,27 @@ public static class ClassDetector
 		}
 
 		// Armor and accessories: scan tooltip text for class keywords.
-		// This is far more reliable than name matching — tooltips consistently say
-		// "melee damage", "ranged", "mana", "minion" etc. for both vanilla and modded items.
 		if (item.headSlot >= 0 || item.bodySlot >= 0 || item.legSlot >= 0 || item.accessory)
 		{
 			PlayerClass? eqClass = DetectEquipmentClassFromTooltip(item);
 			if (eqClass == null)
-				return true; // Universal — matches all classes
+			{
+				if (strict)
+					return false; // Strict: unclassified equipment only shows under "All"
+				return true; // Non-strict: universal matches all
+			}
 			return eqClass == playerClass;
 		}
 
 		// Tools, materials, etc. — always match
 		return true;
 	}
+
+	/// <summary>
+	/// Returns the detected class of an armor piece, or null if unclassified.
+	/// Uses tooltip scanning + name-based fallbacks.
+	/// </summary>
+	public static PlayerClass? DetectArmorClass(Item item) => DetectEquipmentClassFromTooltip(item);
 
 	/// <summary>
 	/// Detects equipment class by scanning tooltip text for class keywords.
@@ -165,21 +177,24 @@ public static class ClassDetector
 
 				if (ContainsAny(line, "melee damage", "melee speed", "melee crit"))
 					return PlayerClass.Melee;
-				if (ContainsAny(line, "ranged damage", "ranged crit", "ammo consumption"))
+				if (ContainsAny(line, "ranged damage", "ranged crit", "ranged speed",
+					"ammo consumption", "arrow damage", "bullet damage"))
 					return PlayerClass.Ranged;
 				if (ContainsAny(line, "magic damage", "magic crit", "mana cost", "maximum mana",
-					"mana usage", "reduces mana"))
+					"mana usage", "reduces mana", "magic speed"))
 					return PlayerClass.Mage;
 				if (ContainsAny(line, "summon damage", "minion damage", "minion capacity",
-					"sentry capacity", "whip speed", "whip range", "summon tag"))
+					"sentry capacity", "whip speed", "whip range", "summon tag",
+					"minion knockback"))
 					return PlayerClass.Summoner;
 			}
 		}
 		catch { }
 
 		// Fallback: check item name for class-specific armor variants
-		// (some armor sets like Hallowed have class variants with no tooltip difference)
 		string name = (item.Name ?? "").ToLowerInvariant();
+
+		// Head slot class variants (Hallowed Mask vs Helmet vs Headgear, etc.)
 		if (item.headSlot >= 0)
 		{
 			if (ContainsAny(name, "mask", "visage"))
@@ -188,6 +203,21 @@ public static class ClassDetector
 				return PlayerClass.Ranged;
 			if (ContainsAny(name, "headgear", "hood", "hat", "circlet"))
 				return PlayerClass.Mage;
+		}
+
+		// Armor set name prefixes — works for all slots (head/body/legs)
+		if (item.headSlot >= 0 || item.bodySlot >= 0 || item.legSlot >= 0)
+		{
+			if (ContainsAny(name, "solar", "beetle", "turtle"))
+				return PlayerClass.Melee;
+			if (ContainsAny(name, "vortex", "shroomite"))
+				return PlayerClass.Ranged;
+			if (ContainsAny(name, "nebula", "spectre"))
+				return PlayerClass.Mage;
+			if (ContainsAny(name, "stardust", "tiki", "spooky"))
+				return PlayerClass.Summoner;
+			// Ore armor class variants (Cobalt/Mythril/Adamantite/Titanium/Hallowed/etc.)
+			// These are detected via headSlot name above; body/legs are shared across classes
 		}
 
 		return null;

@@ -11,4 +11,6 @@ public class ProgressScanResult
 	public List<GearRecommendation> Recommendations;
 	public Tier CurrentTier;
 	public PlayerClass DetectedClass;
+	public PlayerStats Stats;
+	public List<BossInfo> NextBosses;
 }

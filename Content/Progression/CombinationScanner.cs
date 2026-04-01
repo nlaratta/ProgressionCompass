@@ -23,6 +23,7 @@ public class CombinationResult
 	public List<(int itemType, int quantity)> MissingItems { get; init; } = [];
 	public bool IsAccessory { get; init; }
 	public bool IsWeapon { get; init; }
+	public bool IsArmor { get; init; }
 
 	/// <summary>
 	/// Sub-combinations that are buildable now (100% complete) and would
@@ -75,7 +76,7 @@ public static class CombinationScanner
 		var upgradeTargets = BuildUpgradeMap(recipeIndex);
 
 		// Pass 1: Identify ALL combination recipe candidates (cheap — no resolver calls)
-		var candidates = new List<(int outputType, bool isAccessory, bool isWeapon)>();
+		var candidates = new List<(int outputType, bool isAccessory, bool isWeapon, bool isArmor)>();
 		var seenOutputs = new HashSet<int>();
 
 		for (int i = 0; i < Recipe.numRecipes; i++)
@@ -94,8 +95,9 @@ public static class CombinationScanner
 			if (output == null) continue;
 
 			bool isAccessory = output.accessory;
-			bool isWeapon = output.damage > 0;
-			if (!isAccessory && !isWeapon) continue;
+			bool isWeapon = output.damage > 0 && output.ammo == 0;
+			bool isArmor = output.headSlot >= 0 || output.bodySlot >= 0 || output.legSlot >= 0;
+			if (!isAccessory && !isWeapon && !isArmor) continue;
 
 			if (ownedItemTypes.Contains(outputType)) continue;
 			if (PlayerOwnsUpgrade(outputType, ownedItemTypes, upgradeTargets)) continue;
@@ -103,13 +105,13 @@ public static class CombinationScanner
 			Tier recipeTier = ProgressionTier.EstimateRecipeTier(recipe);
 			if (recipeTier > currentTier + 2) continue;
 
-			candidates.Add((outputType, isAccessory, isWeapon));
+			candidates.Add((outputType, isAccessory, isWeapon, isArmor));
 		}
 
 		// Pass 2: Resolve each candidate to get completion % (expensive but targeted)
 		var resolver = new DependencyResolver(recipeIndex, sourceSystem);
 
-		foreach (var (outputType, isAccessory, isWeapon) in candidates)
+		foreach (var (outputType, isAccessory, isWeapon, isArmor) in candidates)
 		{
 			var inv = new Dictionary<int, InventoryEntry>(inventory);
 			ResolverResult result;
@@ -139,7 +141,9 @@ public static class CombinationScanner
 			}
 
 			float pct = (float)owned / total * 100f;
-			if (pct < MinCompletionPercent)
+			// Lower threshold for complex items (5+ materials) — even partial progress is meaningful
+			float threshold = total >= 5 ? 20f : MinCompletionPercent;
+			if (pct < threshold)
 				continue;
 
 			results.Add(new CombinationResult
@@ -149,7 +153,8 @@ public static class CombinationScanner
 				LeafMaterialsTotal = total,
 				MissingItems = missing,
 				IsAccessory = isAccessory,
-				IsWeapon = isWeapon
+				IsWeapon = isWeapon,
+				IsArmor = isArmor
 			});
 		}
 
@@ -232,27 +237,42 @@ public static class CombinationScanner
 	}
 
 	/// <summary>
-	/// Checks if a recipe is a combination recipe: output is equipment and
-	/// at least 2 direct ingredients are equipment (accessories or weapons).
+	/// Checks if a recipe is a combination/upgrade recipe worth tracking.
+	/// Returns true if:
+	/// - 2+ equipment ingredients (classic combination: Ankh Shield, Terra Blade)
+	/// - OR 1 equipment ingredient + 2 other ingredients (upgrade: Minishark → Megashark)
+	/// The output must also be equipment (checked by the caller).
 	/// </summary>
 	private static bool IsCombinationRecipe(Recipe recipe)
 	{
 		int equipmentIngredients = 0;
+		int totalIngredients = 0;
 
 		foreach (var ingredient in recipe.requiredItem)
 		{
 			if (ingredient.type <= ItemID.None)
 				continue;
 
+			totalIngredients++;
 			var item = ContentSamples.ItemsByType.GetValueOrDefault(ingredient.type);
 			if (item == null)
 				continue;
 
-			if (item.accessory || item.damage > 0 || item.defense > 0)
+			bool isEquipment = item.accessory || item.damage > 0
+				|| item.headSlot >= 0 || item.bodySlot >= 0 || item.legSlot >= 0;
+			if (isEquipment)
 				equipmentIngredients++;
 		}
 
-		return equipmentIngredients >= 2;
+		// 2+ equipment = classic combination (Ankh Shield, Night's Edge)
+		if (equipmentIngredients >= 2)
+			return true;
+
+		// 1 equipment + other materials = upgrade recipe (Minishark → Megashark, Turtle → Beetle)
+		if (equipmentIngredients >= 1 && totalIngredients >= 2)
+			return true;
+
+		return false;
 	}
 
 	/// <summary>

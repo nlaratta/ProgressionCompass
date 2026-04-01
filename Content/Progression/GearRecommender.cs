@@ -17,10 +17,30 @@ public enum GearCategory
 	Tool
 }
 
+public enum AcquisitionMethod
+{
+	Craftable,
+	BossDrop,
+	Shop,
+	Event,
+	MobDrop,
+	Fishing,
+	Exploration,
+	Unknown
+}
+
 /// <summary>
 /// A recommended gear upgrade: an item the player doesn't own that is
 /// better than what they currently have and available at their tier.
 /// </summary>
+public enum Proximity
+{
+	CraftableNow = 0,
+	AlmostReady = 1,  // 1-2 ingredients missing
+	NeedsWork = 2,    // 3+ missing or non-craftable
+	FarAway = 3       // many missing or high tier gap
+}
+
 public class GearRecommendation
 {
 	public int ItemType { get; init; }
@@ -31,6 +51,12 @@ public class GearRecommendation
 	public int TotalIngredientCount { get; init; }
 	public Tier RequiredTier { get; init; }
 	public float Score { get; init; }
+	public Proximity Proximity { get; init; }
+
+	/// <summary>The item's actual base damage (0 for non-weapons).</summary>
+	public int BaseDamage { get; init; }
+	/// <summary>The item's theoretical DPS (0 for non-weapons).</summary>
+	public float Dps { get; init; }
 
 	/// <summary>How to obtain this item if not craftable.</summary>
 	public string SourceHint { get; init; }
@@ -40,6 +66,9 @@ public class GearRecommendation
 	public bool HasRecipe { get; init; }
 	/// <summary>Recipe ingredients: (itemType, needed, owned). Null if not craftable.</summary>
 	public List<(int itemType, int needed, int owned)> Ingredients { get; init; }
+
+	/// <summary>Primary way to obtain this item.</summary>
+	public AcquisitionMethod Acquisition { get; init; }
 }
 
 /// <summary>
@@ -60,36 +89,13 @@ public static class GearRecommender
 		Dictionary<int, InventoryEntry> inventory,
 		bool includeChests)
 	{
-		// Analyze player's current best gear
-		int bestMeleeDmg = 0, bestRangedDmg = 0, bestMagicDmg = 0, bestSummonDmg = 0;
-		int currentDefense = 0;
-		int bestPickPower = 0;
-
-		foreach (var (type, entry) in inventory)
-		{
-			if (entry.AvailableCount(includeChests) <= 0)
-				continue;
-
-			var item = ContentSamples.ItemsByType.GetValueOrDefault(type);
-			if (item == null) continue;
-
-			if (item.damage > 0)
-			{
-				bool isWhip = item.DamageType == DamageClass.SummonMeleeSpeed;
-				if (!isWhip && item.DamageType.CountsAsClass(DamageClass.Melee) && item.damage > bestMeleeDmg)
-					bestMeleeDmg = item.damage;
-				if (item.DamageType.CountsAsClass(DamageClass.Ranged) && item.damage > bestRangedDmg)
-					bestRangedDmg = item.damage;
-				if (item.DamageType.CountsAsClass(DamageClass.Magic) && item.damage > bestMagicDmg)
-					bestMagicDmg = item.damage;
-				if ((item.DamageType.CountsAsClass(DamageClass.Summon) || isWhip) && item.damage > bestSummonDmg)
-					bestSummonDmg = item.damage;
-			}
-			if (item.pick > bestPickPower)
-				bestPickPower = item.pick;
-		}
-
-		currentDefense = currentArmorDefense;
+		var stats = ComputePlayerStats(inventory, includeChests, currentArmorDefense);
+		int bestMeleeDmg = stats.BestMeleeDmg;
+		int bestRangedDmg = stats.BestRangedDmg;
+		int bestMagicDmg = stats.BestMagicDmg;
+		int bestSummonDmg = stats.BestSummonDmg;
+		int currentDefense = stats.ArmorDefense;
+		int bestPickPower = stats.BestPickPower;
 
 		var ownedItems = new HashSet<int>();
 		foreach (var (type, entry) in inventory)
@@ -138,23 +144,53 @@ public static class GearRecommender
 			string improvement = "";
 			GearCategory category;
 
+			int baseDamage = 0;
+			float itemDps = 0;
+
 			if (isWeapon)
 			{
 				category = GearCategory.Weapon;
-				int bestCurrentDmg = GetBestDamageForClass(item, bestMeleeDmg, bestRangedDmg, bestMagicDmg, bestSummonDmg);
-				int delta = item.damage - bestCurrentDmg;
-				if (delta <= 0) continue; // Not an upgrade
-				score = delta;
-				improvement = $"+{delta} damage over current";
+
+				// DPS-based comparison instead of raw damage
+				itemDps = PlayerStats.CalculateDps(item);
+				float currentBestDps = GetBestDpsForClass(item, stats);
+
+				// For summon weapons: use damage-per-slot
+				float slotCost = 1f;
+				if (item.DamageType.CountsAsClass(DamageClass.Summon) || item.DamageType == DamageClass.SummonMeleeSpeed)
+				{
+					if (ItemID.Sets.StaffMinionSlotsRequired != null && type < ItemID.Sets.StaffMinionSlotsRequired.Length)
+						slotCost = Math.Max(ItemID.Sets.StaffMinionSlotsRequired[type], 0.5f);
+
+					// Sentries get a bonus — they use separate slots
+					if (item.sentry)
+						itemDps *= 1.3f;
+				}
+				float effectiveDps = itemDps / slotCost;
+
+				if (effectiveDps <= currentBestDps && item.damage <= GetBestDamageForClass(item, bestMeleeDmg, bestRangedDmg, bestMagicDmg, bestSummonDmg))
+					continue; // Not an upgrade by DPS or raw damage
+
+				baseDamage = item.damage;
+				float dpsDelta = effectiveDps - currentBestDps;
+				score = Math.Max(dpsDelta, 0) + Math.Max(item.damage - GetBestDamageForClass(item, bestMeleeDmg, bestRangedDmg, bestMagicDmg, bestSummonDmg), 0) * 0.5f;
+				improvement = $"{item.damage} dmg, {(int)itemDps} DPS";
 			}
 			else if (isArmor)
 			{
 				category = GearCategory.Armor;
 				int avgCurrentPerPiece = currentDefense / 3;
 				int delta = item.defense - avgCurrentPerPiece;
-				if (delta <= 0) continue;
-				score = delta * 2f; // Weight armor upgrades
-				improvement = $"+{delta} defense over current";
+
+				// Class-variant head armor (e.g., Cobalt Hat has 1 def but +40 mana)
+				// may have low defense but valuable class bonuses — don't skip them
+				bool hasClassBonus = ClassDetector.DetectArmorClass(item) != null;
+				if (delta <= 0 && !hasClassBonus) continue;
+
+				score = Math.Max(delta, 0) * 2f;
+				if (hasClassBonus)
+					score += item.rare * 3f; // Class-specific armor is inherently valuable
+				improvement = delta > 0 ? $"{item.defense} def (+{delta})" : $"{item.defense} def";
 			}
 			else if (isTool)
 			{
@@ -162,16 +198,52 @@ public static class GearRecommender
 				int delta = item.pick - bestPickPower;
 				if (delta <= 0) continue;
 				score = delta * 0.5f;
-				improvement = $"+{delta}% pick power";
+				improvement = $"{item.pick}% pick (+{delta})";
 			}
 			else
 			{
 				category = GearCategory.Accessory;
-				// Accessories are harder to score — use rarity as proxy
-				score = item.rare * 5f;
+
+				// Wings: compare by flight stats
 				if (item.wingSlot > 0)
-					score += 20f; // Wings are always high priority
-				improvement = $"Rarity: {item.rare}";
+				{
+					float wingScore = 0f;
+					try
+					{
+						if (item.wingSlot < Terraria.ID.ArmorIDs.Wing.Sets.Stats.Length)
+						{
+							var ws = Terraria.ID.ArmorIDs.Wing.Sets.Stats[item.wingSlot];
+							float flyTimeDelta = ws.FlyTime - stats.WingFlyTime;
+							float speedDelta = ws.AccRunSpeedOverride - stats.WingSpeed;
+							if (flyTimeDelta <= 0 && speedDelta <= 0 && stats.WingItemType > 0)
+								continue; // Not better than current wings
+							wingScore = flyTimeDelta * 0.5f + speedDelta * 10f;
+							if (ws.HasDownHoverStats) wingScore += 15f;
+							float flySecs = ws.FlyTime / 60f;
+							improvement = $"Wings: {flySecs:F1}s fly, {ws.AccRunSpeedOverride:F0} speed";
+						}
+					}
+					catch { }
+					score = wingScore + 20f;
+				}
+				else
+				{
+					// Parse tooltip for actual stat bonuses
+					float tooltipScore = ScoreAccessoryFromTooltip(item);
+					if (tooltipScore > 0)
+					{
+						score = tooltipScore;
+						improvement = $"Score: {(int)tooltipScore}";
+					}
+					else
+					{
+						score = item.rare * 3f;
+						improvement = $"Tier {item.rare} accessory";
+					}
+				}
+
+				if (HasSimilarAccessory(item, ownedItems))
+					score *= 0.4f;
 			}
 
 			// Check craftability + gather ingredient details
@@ -207,13 +279,24 @@ public static class GearRecommender
 				}
 				missingCount = bestMissing;
 				totalIngCount = bestIngredients?.Count ?? 0;
-				if (missingCount == 0)
-					score += 50f;
 			}
 
-			// Source info for non-craftable items
+			// Classify proximity (no score boost — sections handle grouping)
+			Proximity proximity;
+			if (hasRecipe && missingCount == 0)
+				proximity = Proximity.CraftableNow;
+			else if (hasRecipe && missingCount <= 2)
+				proximity = Proximity.AlmostReady;
+			else if (hasRecipe)
+				proximity = Proximity.NeedsWork;
+			else
+				proximity = Proximity.FarAway;
+
+			// Source info + acquisition method
 			string sourceHint = null;
 			List<Graph.ItemSource> allSources = null;
+			AcquisitionMethod acquisition = hasRecipe ? AcquisitionMethod.Craftable : AcquisitionMethod.Unknown;
+
 			if (!hasRecipe && sourceSystem != null)
 			{
 				allSources = sourceSystem.GetSources(type);
@@ -221,6 +304,18 @@ public static class GearRecommender
 				{
 					var best = Graph.ItemSource.PickBest(allSources);
 					sourceHint = best?.Description;
+					acquisition = best?.Type switch
+					{
+						Graph.ItemSourceType.BossDrop => AcquisitionMethod.BossDrop,
+						Graph.ItemSourceType.NPCShop => AcquisitionMethod.Shop,
+						Graph.ItemSourceType.NPCDrop => AcquisitionMethod.MobDrop,
+						Graph.ItemSourceType.Event => AcquisitionMethod.Event,
+						Graph.ItemSourceType.Fishing => AcquisitionMethod.Fishing,
+						Graph.ItemSourceType.ChestLoot => AcquisitionMethod.Exploration,
+						Graph.ItemSourceType.BagDrop => AcquisitionMethod.BossDrop,
+						Graph.ItemSourceType.Gathering => AcquisitionMethod.Exploration,
+						_ => AcquisitionMethod.Unknown
+					};
 				}
 			}
 
@@ -234,10 +329,14 @@ public static class GearRecommender
 				TotalIngredientCount = totalIngCount,
 				RequiredTier = itemTier,
 				Score = score,
+				Proximity = proximity,
+				BaseDamage = baseDamage,
+				Dps = itemDps,
 				SourceHint = sourceHint,
 				AllSources = allSources,
 				HasRecipe = hasRecipe,
-				Ingredients = bestIngredients
+				Ingredients = bestIngredients,
+				Acquisition = acquisition
 			});
 		}
 
@@ -249,7 +348,7 @@ public static class GearRecommender
 
 	private static int GetBestDamageForClass(Item item, int melee, int ranged, int magic, int summon)
 	{
-		if (item.DamageType == DamageClass.SummonMeleeSpeed) return summon; // Whips compare against summon
+		if (item.DamageType == DamageClass.SummonMeleeSpeed) return summon;
 		if (item.DamageType.CountsAsClass(DamageClass.Melee)) return melee;
 		if (item.DamageType.CountsAsClass(DamageClass.Ranged)) return ranged;
 		if (item.DamageType.CountsAsClass(DamageClass.Magic)) return magic;
@@ -257,6 +356,181 @@ public static class GearRecommender
 		return Math.Max(Math.Max(melee, ranged), Math.Max(magic, summon));
 	}
 
+	private static float GetBestDpsForClass(Item item, PlayerStats stats)
+	{
+		if (item.DamageType == DamageClass.SummonMeleeSpeed) return stats.BestSummonDps;
+		if (item.DamageType.CountsAsClass(DamageClass.Melee)) return stats.BestMeleeDps;
+		if (item.DamageType.CountsAsClass(DamageClass.Ranged)) return stats.BestRangedDps;
+		if (item.DamageType.CountsAsClass(DamageClass.Magic)) return stats.BestMagicDps;
+		if (item.DamageType.CountsAsClass(DamageClass.Summon)) return stats.BestSummonDps;
+		return Math.Max(Math.Max(stats.BestMeleeDps, stats.BestRangedDps),
+			Math.Max(stats.BestMagicDps, stats.BestSummonDps));
+	}
+
+	/// <summary>
+	/// Checks if the player already owns an accessory of similar type
+	/// (boots vs boots, emblems vs emblems) to deprioritize duplicates.
+	/// </summary>
+	private static bool HasSimilarAccessory(Item candidate, HashSet<int> ownedItems)
+	{
+		string candName = (candidate.Name ?? "").ToLowerInvariant();
+
+		// Extract category keywords from the candidate
+		string[] typeKeys = ["boot", "wing", "shield", "emblem", "hook",
+			"balloon", "horseshoe", "band", "charm", "cuff", "glove",
+			"quiver", "scope", "cloak", "necklace"];
+
+		foreach (string key in typeKeys)
+		{
+			if (!candName.Contains(key)) continue;
+
+			// Check if any owned item shares this keyword
+			foreach (int ownedType in ownedItems)
+			{
+				var owned = ContentSamples.ItemsByType.GetValueOrDefault(ownedType);
+				if (owned == null || !owned.accessory) continue;
+				string ownedName = (owned.Name ?? "").ToLowerInvariant();
+				if (ownedName.Contains(key))
+					return true;
+			}
+		}
+
+		return false;
+	}
+
 	private static Tier EstimateItemTier(int itemType) =>
 		ProgressionTier.EstimateItemTier(itemType);
+
+	/// <summary>
+	/// Computes a snapshot of the player's current best gear stats from inventory.
+	/// Used by both the recommender (internally) and the Progression Command Center.
+	/// </summary>
+	public static PlayerStats ComputePlayerStats(
+		Dictionary<int, InventoryEntry> inventory, bool includeChests, int armorDefense = 0)
+	{
+		int bestMelee = 0, bestRanged = 0, bestMagic = 0, bestSummon = 0;
+		float bestMeleeDps = 0, bestRangedDps = 0, bestMagicDps = 0, bestSummonDps = 0;
+		int bestPick = 0;
+		int wingItem = 0;
+		float wingFlyTime = 0, wingSpeed = 0;
+
+		if (ContentSamples.ItemsByType == null)
+			return new PlayerStats(0, 0, 0, 0, 0, 0, 0, 0, armorDefense, 0);
+
+		foreach (var (type, entry) in inventory)
+		{
+			if (entry.AvailableCount(includeChests) <= 0)
+				continue;
+
+			var item = ContentSamples.ItemsByType.GetValueOrDefault(type);
+			if (item == null) continue;
+
+			if (item.damage > 0)
+			{
+				float dps = PlayerStats.CalculateDps(item);
+				bool isWhip = item.DamageType == DamageClass.SummonMeleeSpeed;
+
+				if (!isWhip && item.DamageType.CountsAsClass(DamageClass.Melee))
+				{
+					if (dps > bestMeleeDps) { bestMeleeDps = dps; bestMelee = item.damage; }
+				}
+				if (item.DamageType.CountsAsClass(DamageClass.Ranged))
+				{
+					if (dps > bestRangedDps) { bestRangedDps = dps; bestRanged = item.damage; }
+				}
+				if (item.DamageType.CountsAsClass(DamageClass.Magic))
+				{
+					if (dps > bestMagicDps) { bestMagicDps = dps; bestMagic = item.damage; }
+				}
+				if (item.DamageType.CountsAsClass(DamageClass.Summon) || isWhip)
+				{
+					if (dps > bestSummonDps) { bestSummonDps = dps; bestSummon = item.damage; }
+				}
+			}
+			if (item.pick > bestPick)
+				bestPick = item.pick;
+
+			// Track best wings by fly time
+			if (item.wingSlot > 0)
+			{
+				try
+				{
+					if (item.wingSlot < Terraria.ID.ArmorIDs.Wing.Sets.Stats.Length)
+					{
+						var ws = Terraria.ID.ArmorIDs.Wing.Sets.Stats[item.wingSlot];
+						if (ws.FlyTime > wingFlyTime)
+						{
+							wingItem = type;
+							wingFlyTime = ws.FlyTime;
+							wingSpeed = ws.AccRunSpeedOverride;
+						}
+					}
+				}
+				catch { wingItem = type; }
+			}
+		}
+
+		return new PlayerStats(
+			bestMelee, bestRanged, bestMagic, bestSummon,
+			bestMeleeDps, bestRangedDps, bestMagicDps, bestSummonDps,
+			armorDefense, bestPick, wingItem, wingFlyTime, wingSpeed);
+	}
+
+	/// <summary>
+	/// Parses accessory tooltip for numeric stat bonuses.
+	/// Returns a composite score based on damage%, crit%, defense, mana, etc.
+	/// </summary>
+	public static float ScoreAccessoryFromTooltip(Item item)
+	{
+		if (item.ToolTip == null || item.ToolTip == Terraria.UI.ItemTooltip.None)
+			return 0f;
+
+		float score = 0f;
+		try
+		{
+			for (int i = 0; i < item.ToolTip.Lines; i++)
+			{
+				string line = item.ToolTip.GetLine(i);
+				if (string.IsNullOrEmpty(line)) continue;
+				string lower = line.ToLowerInvariant();
+
+				// Parse percentage bonuses: "X% increased/more damage/speed/crit"
+				var pctMatch = System.Text.RegularExpressions.Regex.Match(line, @"(\d+)%");
+				if (pctMatch.Success)
+				{
+					int pct = int.Parse(pctMatch.Groups[1].Value);
+					if (lower.Contains("damage")) score += pct * 3f;
+					else if (lower.Contains("crit")) score += pct * 2.5f;
+					else if (lower.Contains("speed")) score += pct * 2f;
+					else if (lower.Contains("movement")) score += pct * 1f;
+					else score += pct * 1f;
+				}
+
+				// Parse flat bonuses: "+X defense/mana/life"
+				var flatMatch = System.Text.RegularExpressions.Regex.Match(line, @"\+?\s*(\d+)\s*(defense|mana|life|armor penetration)");
+				if (flatMatch.Success)
+				{
+					int val = int.Parse(flatMatch.Groups[1].Value);
+					string stat = flatMatch.Groups[2].Value;
+					if (stat == "defense") score += val * 4f;
+					else if (stat == "mana") score += val * 0.5f;
+					else if (stat == "life") score += val * 2f;
+					else if (stat == "armor penetration") score += val * 3f;
+				}
+
+				// Minion/sentry capacity
+				if (lower.Contains("minion capacity") || lower.Contains("max minions"))
+					score += 25f;
+				if (lower.Contains("sentry capacity") || lower.Contains("max sentries"))
+					score += 20f;
+
+				// Immunity bonuses
+				if (lower.Contains("immunity") || lower.Contains("immune"))
+					score += 8f;
+			}
+		}
+		catch { }
+
+		return score;
+	}
 }
