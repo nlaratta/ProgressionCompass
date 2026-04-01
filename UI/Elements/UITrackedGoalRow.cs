@@ -50,11 +50,15 @@ public class UITrackedGoalRow : UIElement
 	{
 		var dims = GetDimensions();
 		bool hovering = IsMouseHovering;
+		float pct = _goal.ProgressPercent / 100f;
+		bool isReady = pct >= 1f;
 
 		if (hovering)
 			UIHelper.ShowItemTooltip(_goal.ItemType, " (right-click to unpin)");
 
-		Color bg = hovering ? new Color(50, 58, 110) * 0.6f : new Color(35, 40, 75) * 0.4f;
+		Color bg = isReady
+			? (hovering ? new Color(40, 80, 40) * 0.7f : new Color(30, 65, 30) * 0.5f)
+			: (hovering ? new Color(50, 58, 110) * 0.6f : new Color(35, 40, 75) * 0.4f);
 		spriteBatch.Draw(TextureAssets.MagicPixel.Value, dims.ToRectangle(), bg);
 
 		float x = dims.X + 4f;
@@ -64,33 +68,51 @@ public class UITrackedGoalRow : UIElement
 		x += 24f;
 
 		string name = _displayItem.Name ?? "Unknown";
-		if (name.Length > 24) name = name[..23] + "..";
+		if (name.Length > 20) name = name[..19] + "..";
 		Utils.DrawBorderString(spriteBatch, name, new Vector2(x, y), Color.White, 0.65f);
 
-		string frac = $"{_goal.OwnedMaterialCount}/{_goal.TotalMaterialCount}";
-		float fracW = FontAssets.MouseText.Value.MeasureString(frac).X * 0.6f;
-		Utils.DrawBorderString(spriteBatch, frac, new Vector2(dims.X + dims.Width - fracW - 4f, y), Color.LightGray, 0.6f);
+		if (isReady)
+		{
+			// Ready to craft — show prominent badge instead of fraction
+			Utils.DrawBorderString(spriteBatch, "CRAFT!",
+				new Vector2(dims.X + dims.Width - 50f, y), new Color(80, 255, 80), 0.65f);
 
-		float barX = dims.X + 4f;
-		float barY = y + 22f;
-		float barW = dims.Width - 8f;
-		float barH = 10f;
-		float pct = _goal.ProgressPercent / 100f;
-
-		spriteBatch.Draw(TextureAssets.MagicPixel.Value,
-			new Rectangle((int)barX, (int)barY, (int)barW, (int)barH), new Color(20, 22, 40));
-
-		Color barColor = pct > 0.8f ? new Color(50, 180, 50)
-			: pct > 0.4f ? new Color(200, 180, 50)
-			: new Color(180, 50, 50);
-		int fillW = (int)(barW * pct);
-		if (fillW > 0)
+			// Full green bar
+			float barX = dims.X + 4f;
+			float barY = y + 22f;
+			float barW = dims.Width - 8f;
 			spriteBatch.Draw(TextureAssets.MagicPixel.Value,
-				new Rectangle((int)barX, (int)barY, fillW, (int)barH), barColor);
+				new Rectangle((int)barX, (int)barY, (int)barW, 10), new Color(50, 180, 50));
+			Utils.DrawBorderString(spriteBatch, "Ready to craft!",
+				new Vector2(barX + (barW - FontAssets.MouseText.Value.MeasureString("Ready to craft!").X * 0.5f) / 2f, barY - 1f),
+				Color.White, 0.5f);
+		}
+		else
+		{
+			string frac = $"{_goal.OwnedMaterialCount}/{_goal.TotalMaterialCount}";
+			float fracW = FontAssets.MouseText.Value.MeasureString(frac).X * 0.6f;
+			Utils.DrawBorderString(spriteBatch, frac, new Vector2(dims.X + dims.Width - fracW - 4f, y), Color.LightGray, 0.6f);
 
-		string pctText = $"{(int)_goal.ProgressPercent}%";
-		Utils.DrawBorderString(spriteBatch, pctText,
-			new Vector2(barX + (barW - FontAssets.MouseText.Value.MeasureString(pctText).X * 0.5f) / 2f, barY - 1f),
-			Color.White, 0.5f);
+			float barX = dims.X + 4f;
+			float barY = y + 22f;
+			float barW = dims.Width - 8f;
+			float barH = 10f;
+
+			spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+				new Rectangle((int)barX, (int)barY, (int)barW, (int)barH), new Color(20, 22, 40));
+
+			Color barColor = pct > 0.8f ? new Color(50, 180, 50)
+				: pct > 0.4f ? new Color(200, 180, 50)
+				: new Color(180, 50, 50);
+			int fillW = (int)(barW * pct);
+			if (fillW > 0)
+				spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+					new Rectangle((int)barX, (int)barY, fillW, (int)barH), barColor);
+
+			string pctText = $"{(int)_goal.ProgressPercent}%";
+			Utils.DrawBorderString(spriteBatch, pctText,
+				new Vector2(barX + (barW - FontAssets.MouseText.Value.MeasureString(pctText).X * 0.5f) / 2f, barY - 1f),
+				Color.White, 0.5f);
+		}
 	}
 }

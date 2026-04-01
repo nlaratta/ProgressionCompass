@@ -50,6 +50,12 @@ public class DependencyTreePanel : UIElement
 			return;
 		}
 
+		// For items you already own or can't craft, show a helpful message above the tree
+		if (result.Tree is Content.Graph.HaveNode)
+			_list.Add(new UIEmptyMessage("You already own this item."));
+		else if (result.Tree is Content.Graph.AcquireNode && result.CraftOrder.Count == 0)
+			_list.Add(new UIEmptyMessage("This item has no crafting recipe. See Materials tab for sources."));
+
 		// Flatten the tree into a list of entries
 		FlattenNode(result.Tree, 0, true);
 

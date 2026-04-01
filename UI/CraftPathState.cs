@@ -31,12 +31,14 @@ public class CraftPathState : UIState
 	private DependencyTreePanel _treePanel;
 	private CraftOrderPanel _craftOrderPanel;
 	private PlayerDashboard _dashboard;
+	private TrackingPanel _trackingPanel;
 	private UIText _chestToggleText;
 	private UIPanel _chestToggleBtn;
 	private UIStatusBar _statusBar;
 
 	private bool _chestsEnabled;
 	private bool _resolving;
+	private float _contentLeft; // Left offset for center column panels
 
 	// Analysis (single item view for Materials/Tree/Craft Order tabs)
 	private readonly TargetQueue _queue = new();
@@ -59,12 +61,13 @@ public class CraftPathState : UIState
 		}
 	}
 
-	private const float DashboardWidth = 370f;
+	private const float DashboardWidth = 260f;
+	private const float TrackingWidth = 230f;
 
 	public override void OnInitialize()
 	{
 		_mainPanel = new UIDraggablePanel();
-		_mainPanel.Width.Set(880f, 0f);
+		_mainPanel.Width.Set(980f, 0f);
 		_mainPanel.Height.Set(620f, 0f);
 		_mainPanel.HAlign = 0.5f;
 		_mainPanel.VAlign = 0.5f;
@@ -73,20 +76,26 @@ public class CraftPathState : UIState
 		_mainPanel.BorderColor = new Color(60, 70, 130);
 		Append(_mainPanel);
 
-		float leftW = -(DashboardWidth + 10f);
+		// Three-column layout: [Dashboard | Content | Tracking]
+		_contentLeft = DashboardWidth + 8f;
+		float contentLeft = _contentLeft;
+		float contentRightMargin = TrackingWidth + 8f;
+		float contentW = -(contentLeft + contentRightMargin); // 100% minus both sides
 		float yPos = 0f;
+		float statusBarH = 30f;
+		float columnH = -34f - statusBarH - 16f; // Height for side columns
 
-		// ── Header row ──────────────────────────────────────────
+		// ── Header row (spans content area) ─────────────────────
 		var title = new UIText("Craft Path Optimizer", 0.9f);
 		title.Top.Set(yPos + 2f, 0f);
-		title.Left.Set(0f, 0f);
+		title.Left.Set(contentLeft, 0f);
 		_mainPanel.Append(title);
 
 		_chestToggleBtn = new UIPanel();
 		_chestToggleBtn.Width.Set(108f, 0f);
 		_chestToggleBtn.Height.Set(28f, 0f);
 		_chestToggleBtn.Top.Set(yPos, 0f);
-		_chestToggleBtn.Left.Set(-DashboardWidth - 148f, 1f);
+		_chestToggleBtn.Left.Set(-(contentRightMargin + 148f), 1f);
 		_chestToggleBtn.BackgroundColor = new Color(44, 50, 88);
 		_chestToggleBtn.BorderColor = new Color(70, 80, 140);
 		_chestToggleBtn.SetPadding(0);
@@ -100,7 +109,7 @@ public class CraftPathState : UIState
 			SyncChestToggle();
 			_chestToggleText.SetText(_chestsEnabled ? "Chests: ON" : "Chests: OFF");
 			_chestToggleBtn.BackgroundColor = _chestsEnabled ? new Color(40, 70, 120) : new Color(44, 50, 88);
-			_queue.InvalidateCache(); // Chest state changed — old results are stale
+			_queue.InvalidateCache();
 			if (_queue.Count > 0) RunResolver();
 			try { Main.LocalPlayer?.GetModPlayer<TrackingPlayer>()?.RefreshTracking(); } catch { }
 			_cachedProgressResult = null;
@@ -127,10 +136,48 @@ public class CraftPathState : UIState
 
 		yPos += 34f;
 
-		// ── Search panel (left side) ────────────────────────────
+		// ── Dashboard (LEFT column) ─────────────────────────────
+		var dashPanel = new UIPanel();
+		dashPanel.Top.Set(34f, 0f);
+		dashPanel.Left.Set(0f, 0f);
+		dashPanel.Width.Set(DashboardWidth, 0f);
+		dashPanel.Height.Set(columnH, 1f);
+		dashPanel.BackgroundColor = new Color(28, 32, 58) * 0.9f;
+		dashPanel.BorderColor = new Color(50, 60, 110);
+		dashPanel.SetPadding(4);
+		_mainPanel.Append(dashPanel);
+
+		_dashboard = new PlayerDashboard();
+		_dashboard.Width.Set(0, 1f);
+		_dashboard.Height.Set(0, 1f);
+		_dashboard.OnPinItem += OnItemPinned;
+		_dashboard.OnAnalyzeItem += OnDashboardAnalyze;
+		_dashboard.OnOpenRecommendations += OnOpenRecommendations;
+		_dashboard.IsItemTracked = itemType => Tracking?.IsTracked(itemType) ?? false;
+		dashPanel.Append(_dashboard);
+
+		// ── Tracking (RIGHT column) ─────────────────────────────
+		var trackPanel = new UIPanel();
+		trackPanel.Top.Set(34f, 0f);
+		trackPanel.Left.Set(-TrackingWidth, 1f);
+		trackPanel.Width.Set(TrackingWidth, 0f);
+		trackPanel.Height.Set(columnH, 1f);
+		trackPanel.BackgroundColor = new Color(28, 32, 58) * 0.9f;
+		trackPanel.BorderColor = new Color(50, 60, 110);
+		trackPanel.SetPadding(4);
+		_mainPanel.Append(trackPanel);
+
+		_trackingPanel = new TrackingPanel();
+		_trackingPanel.OnGoalClicked += OnDashboardGoalClicked;
+		_trackingPanel.OnGoalUnpinned += OnDashboardGoalUnpinned;
+		_trackingPanel.OnClearAllGoals += OnDashboardClearAll;
+		trackPanel.Append(_trackingPanel);
+
+		// ── Search (CENTER column) ──────────────────────────────
 		_targetPanel = new TargetSelectionPanel();
 		_targetPanel.Top.Set(yPos, 0f);
-		_targetPanel.Width.Set(leftW, 1f);
+		_targetPanel.Left.Set(contentLeft, 0f);
+		_targetPanel.Width.Set(contentW, 1f);
 		_targetPanel.Height.Set(150f, 0f);
 		_targetPanel.OnItemSelected += OnItemSelected;
 		_targetPanel.OnItemPinned += OnItemPinned;
@@ -139,10 +186,11 @@ public class CraftPathState : UIState
 
 		yPos += 156f;
 
-		// ── Analysis indicator (left side) ──────────────────────
+		// ── Analysis indicator ──────────────────────────────────
 		_analysisIndicator = new UIAnalysisIndicator();
 		_analysisIndicator.Top.Set(yPos, 0f);
-		_analysisIndicator.Width.Set(leftW, 1f);
+		_analysisIndicator.Left.Set(contentLeft, 0f);
+		_analysisIndicator.Width.Set(contentW, 1f);
 		_analysisIndicator.IsItemTracked = itemType => Tracking?.IsTracked(itemType) ?? false;
 		_analysisIndicator.OnClearClicked += () =>
 		{
@@ -156,10 +204,11 @@ public class CraftPathState : UIState
 
 		yPos += 32f;
 
-		// ── Tab bar (left side, 3 tabs) ─────────────────────────
+		// ── Tab bar ─────────────────────────────────────────────
 		_tabBar = new UITabBar();
 		_tabBar.Top.Set(yPos, 0f);
-		_tabBar.Width.Set(leftW, 1f);
+		_tabBar.Left.Set(contentLeft, 0f);
+		_tabBar.Width.Set(contentW, 1f);
 		_tabBar.AddTab("Materials");
 		_tabBar.AddTab("Tree");
 		_tabBar.AddTab("Craft Order");
@@ -168,25 +217,28 @@ public class CraftPathState : UIState
 
 		yPos += 34f;
 
-		// ── Content panels (left side, stacked) ─────────────────
-		float statusBarH = 30f;
+		// ── Content panels (CENTER column, stacked) ─────────────
 		float contentH = -(yPos + statusBarH + 16f);
 
 		_materialPanel = new MaterialListPanel();
 		_materialPanel.Top.Set(yPos, 0f);
-		_materialPanel.Width.Set(leftW, 1f);
+		_materialPanel.Left.Set(contentLeft, 0f);
+		_materialPanel.Width.Set(contentW, 1f);
 		_materialPanel.Height.Set(contentH, 1f);
+		_materialPanel.OnAnalyzeItem += OnDashboardAnalyze;
 		_mainPanel.Append(_materialPanel);
 
 		_treePanel = new DependencyTreePanel();
 		_treePanel.Top.Set(yPos, 0f);
-		_treePanel.Width.Set(leftW, 1f);
+		_treePanel.Left.Set(contentLeft, 0f);
+		_treePanel.Width.Set(contentW, 1f);
 		_treePanel.Height.Set(contentH, 1f);
 		_mainPanel.Append(_treePanel);
 
 		_craftOrderPanel = new CraftOrderPanel();
 		_craftOrderPanel.Top.Set(yPos, 0f);
-		_craftOrderPanel.Width.Set(leftW, 1f);
+		_craftOrderPanel.Left.Set(contentLeft, 0f);
+		_craftOrderPanel.Width.Set(contentW, 1f);
 		_craftOrderPanel.Height.Set(contentH, 1f);
 		_mainPanel.Append(_craftOrderPanel);
 
@@ -197,34 +249,21 @@ public class CraftPathState : UIState
 		_statusBar.Height.Set(statusBarH, 0f);
 		_mainPanel.Append(_statusBar);
 
-		// ── Player Dashboard (right side) ───────────────────────
-		var dashPanel = new UIPanel();
-		dashPanel.Top.Set(34f, 0f);
-		dashPanel.Left.Set(-DashboardWidth, 1f);
-		dashPanel.Width.Set(DashboardWidth, 0f);
-		dashPanel.Height.Set(-34f - statusBarH - 16f, 1f);
-		dashPanel.BackgroundColor = new Color(28, 32, 58) * 0.9f;
-		dashPanel.BorderColor = new Color(50, 60, 110);
-		dashPanel.SetPadding(4);
-		_mainPanel.Append(dashPanel);
-
-		_dashboard = new PlayerDashboard();
-		_dashboard.Width.Set(0, 1f);
-		_dashboard.Height.Set(0, 1f);
-		_dashboard.OnPinItem += OnItemPinned;
-		_dashboard.OnAnalyzeItem += OnDashboardAnalyze;
-		_dashboard.OnGoalClicked += OnDashboardGoalClicked;
-		_dashboard.OnGoalUnpinned += OnDashboardGoalUnpinned;
-		_dashboard.OnClearAllGoals += OnDashboardClearAll;
-		// Class filter is now in the Upgrades window, not the dashboard
-		_dashboard.OnOpenRecommendations += OnOpenRecommendations;
-		_dashboard.IsItemTracked = itemType => Tracking?.IsTracked(itemType) ?? false;
-		dashPanel.Append(_dashboard);
-
 		UpdateActivePanel();
 	}
 
 	// ── Item Analysis ───────────────────────────────────────────
+
+	/// <summary>Called from keybind: inspect a specific item (from hovering in game UI).</summary>
+	public void InspectItem(int itemType)
+	{
+		if (itemType <= 0) return;
+		_queue.Clear();
+		_queue.Add(itemType);
+		_analysisIndicator.SetItem(itemType);
+		_tabBar.SelectTab(0); // Switch to Materials tab
+		RunResolver();
+	}
 
 	private void OnItemSelected(int itemType)
 	{
@@ -301,7 +340,7 @@ public class CraftPathState : UIState
 		var system = ModContent.GetInstance<UpgradeWindowSystem>();
 		if (system == null) return;
 		system.Toggle();
-		if (system.IsVisible && _cachedProgressResult?.Recommendations != null)
+		if (system.IsVisible)
 		{
 			PlayerClass savedFilter = PlayerClass.Mixed;
 			try
@@ -312,8 +351,11 @@ public class CraftPathState : UIState
 			catch { }
 
 			system.WindowState.SetResults(
-				_cachedProgressResult.Recommendations,
-				savedFilter);
+				_cachedProgressResult?.Recommendations,
+				savedFilter,
+				_cachedProgressResult?.Stats,
+				_cachedProgressResult?.NextBosses,
+				_cachedProgressResult?.Combinations);
 
 			system.WindowState.OnAnalyzeItem -= OnDashboardAnalyze;
 			system.WindowState.OnAnalyzeItem += OnDashboardAnalyze;
@@ -328,12 +370,7 @@ public class CraftPathState : UIState
 			_dashboard.SetProgressResults(_cachedProgressResult);
 
 		var tracking = Tracking;
-		if (tracking != null)
-		{
-			_dashboard.RefreshTracking(tracking);
-			if (tracking.ActionPlan != null)
-				_dashboard.SetActionPlan(tracking.ActionPlan);
-		}
+		_trackingPanel?.SetTracking(tracking, tracking?.ActionPlan);
 	}
 
 	private void SyncChestToggle()
@@ -350,7 +387,7 @@ public class CraftPathState : UIState
 
 	private void RunResolver()
 	{
-		if (_queue.Count == 0) return;
+		if (_queue.Count == 0 || _resolving) return;
 
 		var recipeIndex = ModContent.GetInstance<RecipeIndexSystem>();
 		var sourceSystem = ModContent.GetInstance<ItemSourceSystem>();
@@ -410,6 +447,10 @@ public class CraftPathState : UIState
 		}
 		catch { }
 
+		// Compute player stats + boss data on main thread (reads game state)
+		var playerStats = GearRecommender.ComputePlayerStats(invCopy, includeChests, armorDefense);
+		var nextBosses = BossDatabase.GetNextBosses(tier, sourceSystem);
+
 		_scanningProgress = true;
 
 		Task.Run(() =>
@@ -423,7 +464,9 @@ public class CraftPathState : UIState
 					Combinations = combos,
 					Recommendations = recs,
 					CurrentTier = tier,
-					DetectedClass = detected
+					DetectedClass = detected,
+					Stats = playerStats,
+					NextBosses = nextBosses
 				};
 			}
 			catch (Exception ex)
@@ -471,9 +514,9 @@ public class CraftPathState : UIState
 
 	private void UpdateActivePanel()
 	{
-		_materialPanel.Left.Set(_tabBar.SelectedIndex == 0 ? 0f : 9999f, 0f);
-		_treePanel.Left.Set(_tabBar.SelectedIndex == 1 ? 0f : 9999f, 0f);
-		_craftOrderPanel.Left.Set(_tabBar.SelectedIndex == 2 ? 0f : 9999f, 0f);
+		_materialPanel.Left.Set(_tabBar.SelectedIndex == 0 ? _contentLeft : 9999f, 0f);
+		_treePanel.Left.Set(_tabBar.SelectedIndex == 1 ? _contentLeft : 9999f, 0f);
+		_craftOrderPanel.Left.Set(_tabBar.SelectedIndex == 2 ? _contentLeft : 9999f, 0f);
 
 		if (_resolving)
 		{

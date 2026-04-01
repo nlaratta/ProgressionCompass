@@ -50,6 +50,12 @@ public class CraftPathUISystem : ModSystem
 		}
 	}
 
+	/// <summary>Opens the panel (if needed) and sets the given item as the analysis target.</summary>
+	public void InspectItem(int itemType)
+	{
+		CraftPathUI?.InspectItem(itemType);
+	}
+
 	public override void UpdateUI(GameTime gameTime)
 	{
 		_lastGameTime = gameTime;

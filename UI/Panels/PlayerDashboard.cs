@@ -7,37 +7,31 @@ using Terraria.GameContent;
 using Terraria.GameContent.UI.Elements;
 using Terraria.ID;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Graph;
 using CraftPathOptimizer.Content.Progression;
-using CraftPathOptimizer.Content.Tracking;
 using CraftPathOptimizer.UI.Elements;
 
 namespace CraftPathOptimizer.UI.Panels;
 
 /// <summary>
-/// The right-side player dashboard. Single scrollable list containing:
-/// 1. Progression header (tier + class filter + "Upgrades" button)
-/// 2. Almost Complete combinations
-/// 3. Tracked items with progress bars
-/// 4. Next Actions (TODO plan)
+/// Left-side progression dashboard. Single scrollable column showing:
+/// Progression header + Ready to Craft + Almost Ready + Building Toward.
+/// Tracked items and actions live in the separate TrackingWindow.
 /// </summary>
 public class PlayerDashboard : UIElement
 {
 	private readonly UIList _list;
 	private readonly UIScrollbar _scrollbar;
+
 	private readonly Dictionary<string, bool> _collapsed = [];
+	private readonly Dictionary<string, bool> _showAll = [];
 
 	// Data
 	private ProgressScanResult _progressResult;
-	private TrackingState _tracking;
-	private List<ActionGroup> _actionPlan;
+	private List<UpgradeItem> _mergedItems;
 
 	// Events
 	public event Action<int> OnPinItem;
 	public event Action<int> OnAnalyzeItem;
-	public event Action<int> OnGoalClicked;
-	public event Action<int> OnGoalUnpinned;
-	public event Action OnClearAllGoals;
 	public event Action OnOpenRecommendations;
 	public Func<int, bool> IsItemTracked { get; set; }
 
@@ -63,32 +57,39 @@ public class PlayerDashboard : UIElement
 	public void SetProgressResults(ProgressScanResult result)
 	{
 		_progressResult = result;
-		RebuildAll();
+		_mergedItems = UpgradeItemBuilder.Build(
+			result?.Recommendations,
+			result?.Combinations,
+			itemType => IsItemTracked?.Invoke(itemType) ?? false);
+		Rebuild();
 	}
 
-	public void RefreshTracking(TrackingState tracking)
-	{
-		_tracking = tracking;
-		RebuildAll();
-	}
-
-	public void SetActionPlan(List<ActionGroup> plan)
-	{
-		_actionPlan = plan;
-		RebuildAll();
-	}
-
-	public void RebuildAll()
+	public void Rebuild()
 	{
 		_list.Clear();
-
 		AddProgressionHeader();
-		AddAlmostCompleteSection();
-		AddTrackedItemsSection();
-		AddNextActionsSection();
+		int countBefore = _list.Count;
+		AddReadyToCraftSection();
+		AddAlmostReadySection();
+		AddBuildingTowardSection();
+
+		// If no sections were added, show a helpful hint
+		if (_list.Count == countBefore)
+		{
+			if (_mergedItems == null)
+				_list.Add(new UIEmptyMessage("Scanning for upgrades..."));
+			else
+				_list.Add(new UIEmptyMessage("Gather materials to see craftable upgrades here."));
+		}
 	}
 
-	// ── Progression Header ──────────────────────────────────
+	private bool IsSectionCollapsed(string name) => _collapsed.GetValueOrDefault(name, false);
+	private void ToggleSection(string name)
+	{
+		_collapsed[name] = !IsSectionCollapsed(name);
+		Rebuild();
+	}
+
 	private void AddProgressionHeader()
 	{
 		Tier tier = _progressResult?.CurrentTier ?? ProgressionTier.Detect();
@@ -100,79 +101,105 @@ public class PlayerDashboard : UIElement
 		));
 	}
 
-	private bool IsSectionCollapsed(string name) => _collapsed.GetValueOrDefault(name, false);
-	private void ToggleSection(string name)
+	private const int InitialShowCount = 6;
+
+	// ── Ready to Craft: items you can build RIGHT NOW ──────
+	private void AddReadyToCraftSection()
 	{
-		_collapsed[name] = !IsSectionCollapsed(name);
-		RebuildAll();
-	}
+		if (_mergedItems == null) return;
 
-	// ── Almost Complete ─────────────────────────────────────
-	private void AddAlmostCompleteSection()
-	{
-		if (_progressResult?.Combinations == null || _progressResult.Combinations.Count == 0)
-			return;
+		var ready = _mergedItems.FindAll(i => i.Proximity == Proximity.CraftableNow);
+		if (ready.Count == 0) return;
 
-		var filtered = _progressResult.Combinations;
-		if (filtered.Count == 0) return;
+		ready.Sort((a, b) => b.Score.CompareTo(a.Score));
 
-		const string section = "Almost Complete";
+		const string section = "Ready to Craft";
 		_list.Add(new UIDashboardSectionHeader(section, IsSectionCollapsed(section), () => ToggleSection(section)));
 		if (IsSectionCollapsed(section)) return;
 
-		foreach (var combo in filtered)
+		bool showAll = _showAll.GetValueOrDefault(section, false);
+		int limit = showAll ? ready.Count : Math.Min(ready.Count, InitialShowCount);
+
+		for (int i = 0; i < limit; i++)
 		{
-			bool tracked = IsItemTracked?.Invoke(combo.ItemType) ?? false;
-			var row = new UICombinationRow(combo,
-				type => OnPinItem?.Invoke(type),
+			_list.Add(new UIUpgradeItemRow(ready[i],
 				type => OnAnalyzeItem?.Invoke(type),
-				tracked);
-			_list.Add(row);
+				type => OnPinItem?.Invoke(type)));
 		}
+
+		AddShowMoreLess(section, ready.Count);
 	}
 
-	// ── Tracked Items ───────────────────────────────────────
-	private void AddTrackedItemsSection()
+	// ── Almost Ready: 80%+ tree completion ──────────────────
+	private void AddAlmostReadySection()
 	{
-		const string section = "Tracked Items";
+		if (_mergedItems == null) return;
+
+		var almost = _mergedItems.FindAll(i => i.Proximity == Proximity.AlmostReady);
+		if (almost.Count == 0) return;
+
+		almost.Sort((a, b) => b.CompletionPercent.CompareTo(a.CompletionPercent));
+
+		const string section = "Almost Ready";
 		_list.Add(new UIDashboardSectionHeader(section, IsSectionCollapsed(section), () => ToggleSection(section)));
 		if (IsSectionCollapsed(section)) return;
 
-		if (_tracking == null || _tracking.Count == 0)
+		bool showAll = _showAll.GetValueOrDefault(section, false);
+		int limit = showAll ? almost.Count : Math.Min(almost.Count, InitialShowCount);
+
+		for (int i = 0; i < limit; i++)
 		{
-			_list.Add(new UIEmptyMessage("Pin items from search to track."));
-			return;
+			_list.Add(new UIUpgradeItemRow(almost[i],
+				type => OnAnalyzeItem?.Invoke(type),
+				type => OnPinItem?.Invoke(type)));
 		}
 
-		for (int i = 0; i < _tracking.Goals.Count; i++)
-		{
-			var goal = _tracking.Goals[i];
-			var row = new UITrackedGoalRow(goal, i);
-			row.OnClicked += index => OnGoalClicked?.Invoke(index);
-			row.OnRightClicked += index => OnGoalUnpinned?.Invoke(index);
-			_list.Add(row);
-		}
-
-		if (_tracking.Count > 0)
-		{
-			var clearBtn = new UIDashboardClearButton();
-			clearBtn.OnLeftClick += (evt, el) => OnClearAllGoals?.Invoke();
-			_list.Add(clearBtn);
-		}
+		AddShowMoreLess(section, almost.Count);
 	}
 
-	// ── Next Actions ────────────────────────────────────────
-	private void AddNextActionsSection()
+	// ── Building Toward: 40%+ completion ────────────────────
+	private void AddBuildingTowardSection()
 	{
-		if (_actionPlan == null || _actionPlan.Count == 0)
-			return;
+		if (_mergedItems == null) return;
 
-		const string section = "Next Actions";
+		var building = _mergedItems.FindAll(i =>
+			i.Proximity is Proximity.NeedsWork or Proximity.FarAway
+			&& i.CompletionPercent >= 40f);
+		if (building.Count == 0) return;
+
+		building.Sort((a, b) => b.CompletionPercent.CompareTo(a.CompletionPercent));
+
+		const string section = "Building Toward";
 		_list.Add(new UIDashboardSectionHeader(section, IsSectionCollapsed(section), () => ToggleSection(section)));
 		if (IsSectionCollapsed(section)) return;
 
-		foreach (var group in _actionPlan)
-			_list.Add(new UIActionGroupCard(group));
+		bool showAll = _showAll.GetValueOrDefault(section, false);
+		int limit = showAll ? building.Count : Math.Min(building.Count, InitialShowCount);
+
+		for (int i = 0; i < limit; i++)
+		{
+			_list.Add(new UIUpgradeItemRow(building[i],
+				type => OnAnalyzeItem?.Invoke(type),
+				type => OnPinItem?.Invoke(type)));
+		}
+
+		AddShowMoreLess(section, building.Count);
+	}
+
+	private void AddShowMoreLess(string section, int totalCount)
+	{
+		bool showAll = _showAll.GetValueOrDefault(section, false);
+		if (!showAll && totalCount > InitialShowCount)
+		{
+			int remaining = totalCount - InitialShowCount;
+			_list.Add(new global::CraftPathOptimizer.Common.Systems.UIShowMoreButton(
+				$"Show {remaining} more...", () => { _showAll[section] = true; Rebuild(); }));
+		}
+		else if (showAll && totalCount > InitialShowCount)
+		{
+			_list.Add(new global::CraftPathOptimizer.Common.Systems.UIShowMoreButton(
+				"Show less", () => { _showAll[section] = false; Rebuild(); }));
+		}
 	}
 }
 
@@ -202,15 +229,12 @@ internal class UIDashboardProgressHeader : UIElement
 
 		spriteBatch.Draw(TextureAssets.MagicPixel.Value, dims.ToRectangle(), new Color(25, 30, 55) * 0.5f);
 
-		// Tier
 		Utils.DrawBorderString(spriteBatch, ProgressionTier.GetDisplayName(_tier),
 			new Vector2(x + 4f, y + 2f), Color.Gold, 0.65f);
 
-		// Detected class
 		Utils.DrawBorderString(spriteBatch, $"Class: {ClassDetector.GetDisplayName(_detected)}",
 			new Vector2(x + 4f, y + 20f), Color.LightGray, 0.55f);
 
-		// "Upgrades >>" button (right side)
 		float upgBtnX = x + dims.Width - 82f;
 		bool hoverUpg = Main.mouseX >= upgBtnX && Main.mouseX < upgBtnX + 78
 			&& Main.mouseY >= y + 8 && Main.mouseY < y + 28;
@@ -225,7 +249,7 @@ internal class UIDashboardProgressHeader : UIElement
 }
 
 /// <summary>Collapsible section header. Click to toggle.</summary>
-internal class UIDashboardSectionHeader : UIElement
+public class UIDashboardSectionHeader : UIElement
 {
 	private readonly string _title;
 	private readonly bool _collapsed;
@@ -251,41 +275,43 @@ internal class UIDashboardSectionHeader : UIElement
 		var dims = GetDimensions();
 		bool hovering = IsMouseHovering;
 
-		// Divider line
 		spriteBatch.Draw(TextureAssets.MagicPixel.Value,
 			new Rectangle((int)dims.X, (int)dims.Y, (int)dims.Width, 1), new Color(60, 70, 130) * 0.4f);
 
-		// Background on hover
 		if (hovering)
 			spriteBatch.Draw(TextureAssets.MagicPixel.Value,
 				new Rectangle((int)dims.X, (int)(dims.Y + 1), (int)dims.Width, (int)dims.Height - 1),
 				new Color(50, 58, 100) * 0.3f);
 
-		// Collapse arrow
 		string arrow = _collapsed ? ">" : "v";
 		Utils.DrawBorderString(spriteBatch, arrow, new Vector2(dims.X + 4f, dims.Y + 4f),
 			hovering ? Color.White : Color.Gray, 0.55f);
 
-		// Title
 		Utils.DrawBorderString(spriteBatch, _title, new Vector2(dims.X + 16f, dims.Y + 4f), Color.Gold, 0.65f);
 	}
 }
 
 /// <summary>Small "Clear All" button for tracked items section.</summary>
-internal class UIDashboardClearButton : UIElement
+public class UIDashboardClearButton : UIPanel
 {
 	public UIDashboardClearButton()
 	{
 		Width.Set(0, 1f);
-		Height.Set(20f, 0f);
+		Height.Set(22f, 0f);
+		BackgroundColor = Color.Transparent;
+		BorderColor = Color.Transparent;
+		SetPadding(0);
 	}
 
 	protected override void DrawSelf(SpriteBatch spriteBatch)
 	{
 		var dims = GetDimensions();
 		bool hover = IsMouseHovering;
+		if (hover)
+			spriteBatch.Draw(TextureAssets.MagicPixel.Value, dims.ToRectangle(),
+				new Color(80, 30, 30) * 0.3f);
 		Utils.DrawBorderString(spriteBatch, "Clear All",
-			new Vector2(dims.X + dims.Width / 2f - 25f, dims.Y + 2f),
+			new Vector2(dims.X + dims.Width / 2f - 25f, dims.Y + 3f),
 			hover ? new Color(255, 100, 100) : Color.Gray, 0.55f);
 	}
 }

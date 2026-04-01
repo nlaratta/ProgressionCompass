@@ -39,8 +39,23 @@ public class CraftOrderPanel : UIElement
 
 		if (result?.CraftOrder == null || result.CraftOrder.Count == 0)
 		{
-			_list.Add(new UIEmptyMessage(
-				result?.Tree is Content.Graph.HaveNode ? "You already own this item!" : "Search for an item to see craft steps."));
+			if (result?.Tree == null)
+				_list.Add(new UIEmptyMessage("Search for an item to see craft steps."));
+			else if (result.Tree is Content.Graph.HaveNode)
+				_list.Add(new UIEmptyMessage("You already own this item!"));
+			else if (result.Tree is Content.Graph.AcquireNode acq)
+			{
+				_list.Add(new UIEmptyMessage("This item cannot be crafted."));
+				// Show sources
+				if (acq.Sources.Count > 0)
+				{
+					_list.Add(new UISectionHeader("How to Obtain"));
+					foreach (var src in acq.Sources)
+						_list.Add(new UISourceRow(src));
+				}
+			}
+			else
+				_list.Add(new UIEmptyMessage("No crafting steps needed."));
 			return;
 		}
 

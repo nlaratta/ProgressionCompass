@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -19,6 +20,9 @@ public class MaterialListPanel : UIElement
 	private readonly UIList _list;
 	private readonly UIScrollbar _scrollbar;
 	private bool _includeChests;
+
+	/// <summary>Fired when user clicks an item in the "Used In" section.</summary>
+	public event Action<int> OnAnalyzeItem;
 
 	public MaterialListPanel()
 	{
@@ -44,9 +48,17 @@ public class MaterialListPanel : UIElement
 		_includeChests = includeChests;
 		_list.Clear();
 
-		if (result?.Materials == null || result.Materials.Count == 0)
+		if (result?.Tree == null)
 		{
 			_list.Add(new UIEmptyMessage("Search for an item to see materials needed."));
+			return;
+		}
+
+		// For non-craftable items (no materials), show item info + Used In
+		if (result.Materials == null || result.Materials.Count == 0)
+		{
+			AddItemInfoSection(result);
+			AddUsedInSection(result);
 			return;
 		}
 
@@ -68,7 +80,11 @@ public class MaterialListPanel : UIElement
 			foreach (var mat in result.Materials)
 			{
 				if (!mat.IsComplete(includeChests))
-					_list.Add(new UIMaterialRow(mat, includeChests));
+				{
+					var row = new UIMaterialRow(mat, includeChests);
+					row.OnClicked += type => OnAnalyzeItem?.Invoke(type);
+					_list.Add(row);
+				}
 			}
 		}
 
@@ -79,14 +95,147 @@ public class MaterialListPanel : UIElement
 			foreach (var mat in result.Materials)
 			{
 				if (mat.IsComplete(includeChests))
-					_list.Add(new UIMaterialRow(mat, includeChests));
+				{
+					var row = new UIMaterialRow(mat, includeChests);
+					row.OnClicked += type => OnAnalyzeItem?.Invoke(type);
+					_list.Add(row);
+				}
 			}
+		}
+
+		// "Used In" section: what recipes use this item as an ingredient?
+		AddUsedInSection(result);
+	}
+
+	/// <summary>Shows info about a non-craftable item: what it is, where to get it, how many you own.</summary>
+	private void AddItemInfoSection(ResolverResult result)
+	{
+		int itemType = result.Tree.ItemType;
+		if (itemType <= Terraria.ID.ItemID.None) return;
+
+		var item = new Item();
+		item.SetDefaults(itemType);
+
+		// Item header with icon
+		_list.Add(new UIItemInfoHeader(itemType, item.Name ?? "?"));
+
+		// Sources
+		var sourceSystem = Terraria.ModLoader.ModContent.GetInstance<global::CraftPathOptimizer.Common.Systems.ItemSourceSystem>();
+		var sources = sourceSystem?.GetSources(itemType) ?? [];
+
+		if (sources.Count > 0)
+		{
+			_list.Add(new UISectionHeader($"How to Obtain ({sources.Count})"));
+			int shown = 0;
+			foreach (var src in sources)
+			{
+				if (shown >= 5) break;
+				_list.Add(new UISourceRow(src));
+				shown++;
+			}
+			if (sources.Count > 5)
+				_list.Add(new UIEmptyMessage($"+{sources.Count - 5} more sources..."));
+		}
+		else
+		{
+			_list.Add(new UIEmptyMessage("No known sources for this item."));
+		}
+	}
+
+	private void AddUsedInSection(ResolverResult result)
+	{
+		if (result?.Tree == null) return;
+		int selectedType = result.Tree.ItemType;
+		if (selectedType <= Terraria.ID.ItemID.None) return;
+
+		var recipeIndex = Terraria.ModLoader.ModContent.GetInstance<global::CraftPathOptimizer.Common.Systems.RecipeIndexSystem>();
+		if (recipeIndex?.RecipesByIngredient == null) return;
+
+		if (!recipeIndex.RecipesByIngredient.TryGetValue(selectedType, out var recipes) || recipes.Count == 0)
+			return;
+
+		// Collect unique output items
+		var usedIn = new List<int>();
+		var seen = new HashSet<int>();
+		foreach (var recipe in recipes)
+		{
+			int outputType = recipe.createItem.type;
+			if (outputType <= Terraria.ID.ItemID.None || outputType == selectedType || seen.Contains(outputType))
+				continue;
+			seen.Add(outputType);
+			usedIn.Add(outputType);
+			if (usedIn.Count >= 20) break; // Cap at 20 to avoid huge lists
+		}
+
+		if (usedIn.Count == 0) return;
+
+		_list.Add(new UISectionHeader($"Used In ({usedIn.Count})"));
+		foreach (int itemType in usedIn)
+		{
+			var row = new UIUsedInRow(itemType);
+			row.OnClicked += type => OnAnalyzeItem?.Invoke(type);
+			_list.Add(row);
 		}
 	}
 }
 
+/// <summary>Compact clickable row showing an item this ingredient is used in.</summary>
+internal class UIUsedInRow : UIElement
+{
+	private readonly int _itemType;
+	public event Action<int> OnClicked;
+
+	public UIUsedInRow(int itemType)
+	{
+		_itemType = itemType;
+		Width.Set(0, 1f);
+		Height.Set(28f, 0f);
+	}
+
+	public override void LeftClick(UIMouseEvent evt)
+	{
+		base.LeftClick(evt);
+		OnClicked?.Invoke(_itemType);
+	}
+
+	protected override void DrawSelf(SpriteBatch spriteBatch)
+	{
+		var dims = GetDimensions();
+		bool hover = IsMouseHovering;
+
+		if (hover)
+			UIHelper.ShowItemTooltip(_itemType);
+
+		Color bg = hover ? new Color(45, 55, 110) * 0.4f : new Color(30, 35, 70) * 0.15f;
+		spriteBatch.Draw(TextureAssets.MagicPixel.Value, dims.ToRectangle(), bg);
+
+		// Cyan accent for "used in" items
+		spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+			new Rectangle((int)dims.X, (int)dims.Y + 2, 3, (int)dims.Height - 4),
+			new Color(80, 180, 220) * 0.7f);
+
+		UIHelper.DrawItemIcon(spriteBatch, _itemType, new Vector2(dims.X + 8f, dims.Y + 2f), 20f);
+
+		var item = new Item();
+		if (_itemType > Terraria.ID.ItemID.None) item.SetDefaults(_itemType);
+		Utils.DrawBorderString(spriteBatch, item.Name ?? "?",
+			new Vector2(dims.X + 32f, dims.Y + 4f), Color.White, 0.6f);
+
+		// Rarity color indicator
+		Color rarityColor = UIHelper.GetRarityColor(item.rare);
+		float nameW = FontAssets.MouseText.Value.MeasureString(item.Name ?? "?").X * 0.6f;
+		Utils.DrawBorderString(spriteBatch, $"(Tier {item.rare})",
+			new Vector2(dims.X + 36f + nameW, dims.Y + 5f), rarityColor * 0.7f, 0.45f);
+
+		// Arrow indicator (clickable)
+		Utils.DrawBorderString(spriteBatch, ">>",
+			new Vector2(dims.X + dims.Width - 22f, dims.Y + 5f),
+			hover ? Color.White : Color.Gray, 0.5f);
+	}
+}
+
 /// <summary>A section header label in the material list.</summary>
-internal class UISectionHeader : UIElement
+public class UISectionHeader : UIElement
 {
 	private readonly string _text;
 
@@ -112,6 +261,14 @@ internal class UIMaterialRow : UIElement
 	private readonly MaterialEntry _material;
 	private readonly bool _includeChests;
 	private readonly Item _displayItem;
+
+	public event Action<int> OnClicked;
+
+	public override void LeftClick(UIMouseEvent evt)
+	{
+		base.LeftClick(evt);
+		OnClicked?.Invoke(_material.ItemType);
+	}
 
 	public UIMaterialRow(MaterialEntry material, bool includeChests)
 	{
@@ -253,5 +410,65 @@ public class UIEmptyMessage : UIElement
 		var size = font.MeasureString(_text) * 0.75f;
 		var pos = new Vector2(dims.X + (dims.Width - size.X) / 2f, dims.Y + 10f);
 		Utils.DrawBorderString(spriteBatch, _text, pos, Color.Gray, 0.75f);
+	}
+}
+
+/// <summary>Header showing an item's icon, name, and rarity for non-craftable item info.</summary>
+internal class UIItemInfoHeader : UIElement
+{
+	private readonly int _itemType;
+	private readonly string _name;
+
+	public UIItemInfoHeader(int itemType, string name)
+	{
+		_itemType = itemType;
+		_name = name;
+		Width.Set(0, 1f);
+		Height.Set(36f, 0f);
+	}
+
+	protected override void DrawSelf(SpriteBatch spriteBatch)
+	{
+		var dims = GetDimensions();
+
+		if (IsMouseHovering)
+			UIHelper.ShowItemTooltip(_itemType);
+
+		spriteBatch.Draw(TextureAssets.MagicPixel.Value, dims.ToRectangle(), new Color(30, 35, 60) * 0.4f);
+
+		UIHelper.DrawItemIcon(spriteBatch, _itemType, new Vector2(dims.X + 6f, dims.Y + 4f), 26f);
+
+		var item = new Item();
+		if (_itemType > Terraria.ID.ItemID.None) item.SetDefaults(_itemType);
+		Color rarityColor = UIHelper.GetRarityColor(item.rare);
+
+		Utils.DrawBorderString(spriteBatch, _name, new Vector2(dims.X + 38f, dims.Y + 4f), Color.White, 0.75f);
+		Utils.DrawBorderString(spriteBatch, "Not craftable",
+			new Vector2(dims.X + 38f, dims.Y + 20f), Color.Gray, 0.5f);
+
+		// Rarity bar
+		spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+			new Rectangle((int)dims.X, (int)dims.Y + 2, 3, (int)dims.Height - 4), rarityColor * 0.8f);
+	}
+}
+
+/// <summary>Row showing a single item source (Drop: X, Buy: Y, Mine: Z).</summary>
+public class UISourceRow : UIElement
+{
+	private readonly Content.Graph.ItemSource _source;
+
+	public UISourceRow(Content.Graph.ItemSource source)
+	{
+		_source = source;
+		Width.Set(0, 1f);
+		Height.Set(20f, 0f);
+	}
+
+	protected override void DrawSelf(SpriteBatch spriteBatch)
+	{
+		var dims = GetDimensions();
+		Color color = UIHelper.GetSourceColor(_source.Type);
+		Utils.DrawBorderString(spriteBatch, _source.Description,
+			new Vector2(dims.X + 12f, dims.Y + 2f), color, 0.55f);
 	}
 }

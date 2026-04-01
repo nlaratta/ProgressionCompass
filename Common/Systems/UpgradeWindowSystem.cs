@@ -109,13 +109,12 @@ public class UpgradeRecommendationsState : UIState
 		Append(_panel);
 	}
 
-	public void SetResults(List<GearRecommendation> recs, PlayerClass filter, HashSet<int> excludeComboTypes = null)
+	public void SetResults(List<GearRecommendation> recs, PlayerClass filter,
+		PlayerStats stats = null, List<BossInfo> nextBosses = null,
+		List<CombinationResult> combos = null)
 	{
 		if (_panel != null)
-		{
-			_panel.CombinationItemTypes = excludeComboTypes;
-			_panel.SetResults(recs, filter);
-		}
+			_panel.SetResults(recs, filter, stats, nextBosses, combos);
 	}
 }
 
@@ -125,35 +124,55 @@ public class UpgradeRecommendationsState : UIState
 /// </summary>
 internal class UpgradeRecommendationsPanel : global::CraftPathOptimizer.UI.Elements.UIDraggablePanel
 {
-	private readonly Terraria.GameContent.UI.Elements.UIList _list;
-	private readonly Terraria.GameContent.UI.Elements.UIScrollbar _scrollbar;
-	private readonly UIClassFilterBar _classFilter;
+	private Terraria.GameContent.UI.Elements.UIList _list;
+	private Terraria.GameContent.UI.Elements.UIScrollbar _scrollbar;
+	private UIClassFilterBar _classFilter;
 
 	private PlayerClass _activeFilter = PlayerClass.Mixed;
 	private List<GearRecommendation> _allRecs;
+	private List<CombinationResult> _allCombos;
+	private List<UpgradeItem> _mergedItems;
+	private PlayerStats _stats;
+	private List<BossInfo> _bosses;
+	private readonly Dictionary<string, bool> _collapsed = [];
+
+	private global::CraftPathOptimizer.UI.Elements.UIPlayerStageCard _stageCard;
+	private global::CraftPathOptimizer.UI.Elements.UIBossProgressionCard _bossCard;
 
 	public event Action<int> OnAnalyzeItem;
 	public event Action OnCloseClicked;
 
+	private const float PanelW = 750f;
+	private const float PanelH = 620f;
+
 	public UpgradeRecommendationsPanel()
 	{
-		Width.Set(520f, 0f);
-		Height.Set(550f, 0f);
+		Width.Set(PanelW, 0f);
+		Height.Set(PanelH, 0f);
 		SetPadding(10f);
 		BackgroundColor = new Color(33, 37, 68) * 0.95f;
 		BorderColor = new Color(60, 70, 130);
+		BuildLayout();
+	}
+
+	private void BuildLayout()
+	{
+		RemoveAllChildren();
+
+		Width.Set(PanelW, 0f);
+		Height.Set(PanelH, 0f);
 
 		// Title
-		var title = new Terraria.GameContent.UI.Elements.UIText("Upgrade Recommendations", 0.8f);
+		var title = new Terraria.GameContent.UI.Elements.UIText("Progression & Upgrades", 0.8f);
 		title.Top.Set(2f, 0f);
 		Append(title);
 
 		// Close button
 		var closeBtn = new Terraria.GameContent.UI.Elements.UIPanel();
 		closeBtn.Width.Set(24f, 0f);
-		closeBtn.Height.Set(24f, 0f);
-		closeBtn.Top.Set(0f, 0f);
-		closeBtn.Left.Set(-26f, 1f);
+		closeBtn.Height.Set(22f, 0f);
+		closeBtn.Top.Set(1f, 0f);
+		closeBtn.Left.Set(-28f, 1f);
 		closeBtn.BackgroundColor = new Color(80, 30, 30);
 		closeBtn.BorderColor = new Color(140, 50, 50);
 		closeBtn.SetPadding(0);
@@ -164,98 +183,201 @@ internal class UpgradeRecommendationsPanel : global::CraftPathOptimizer.UI.Eleme
 		closeBtn.OnLeftClick += (evt, el) => OnCloseClicked?.Invoke();
 		Append(closeBtn);
 
-		// Class filter bar
+		// Class filter
 		_classFilter = new UIClassFilterBar();
-		_classFilter.Top.Set(28f, 0f);
+		_classFilter.Top.Set(26f, 0f);
 		_classFilter.Width.Set(0, 1f);
-		_classFilter.OnFilterChanged += newFilter =>
-		{
-			_activeFilter = newFilter;
-			RenderList();
-		};
+		_classFilter.SelectedClass = _activeFilter;
+		_classFilter.OnFilterChanged += newFilter => { _activeFilter = newFilter; RenderList(); };
 		Append(_classFilter);
 
-		// List
+		float listTop = 52f;
+
+		// Info cards (expanded mode only)
+		// Info cards
+		Tier tier = Tier.PreBoss;
+		try { tier = ProgressionTier.Detect(); } catch { }
+		PlayerClass detected = PlayerClass.Mixed;
+		try { detected = ClassDetector.Detect(Main.LocalPlayer); } catch { }
+
+		if (_stats != null)
+		{
+			_stageCard = new global::CraftPathOptimizer.UI.Elements.UIPlayerStageCard(tier, detected, _stats, _activeFilter);
+			_stageCard.Top.Set(52f, 0f);
+			_stageCard.Left.Set(0f, 0f);
+			Append(_stageCard);
+		}
+
+		_bossCard = new global::CraftPathOptimizer.UI.Elements.UIBossProgressionCard(_bosses);
+		_bossCard.Top.Set(52f, 0f);
+		_bossCard.Left.Set(210f, 0f);
+		_bossCard.Width.Set(-214f, 1f);
+		Append(_bossCard);
+
+		listTop = 188f;
+
+		// Scrollable list
 		_list = new Terraria.GameContent.UI.Elements.UIList();
-		_list.Top.Set(54f, 0f);
+		_list.Top.Set(listTop, 0f);
 		_list.Width.Set(-16f, 1f);
-		_list.Height.Set(-58f, 1f);
+		_list.Height.Set(-(listTop + 4f), 1f);
 		_list.ListPadding = 4f;
 		_list.ManualSortMethod = _ => { };
 		Append(_list);
 
 		_scrollbar = new Terraria.GameContent.UI.Elements.UIScrollbar();
-		_scrollbar.Top.Set(54f, 0f);
+		_scrollbar.Top.Set(listTop, 0f);
 		_scrollbar.Left.Set(-14f, 1f);
-		_scrollbar.Height.Set(-58f, 1f);
+		_scrollbar.Height.Set(-(listTop + 4f), 1f);
 		_list.SetScrollbar(_scrollbar);
 		Append(_scrollbar);
+
+		Recalculate();
 	}
 
-	/// <summary>Set of item types already shown in "Almost Complete" — exclude from recommendations.</summary>
-	public HashSet<int> CombinationItemTypes { get; set; }
-
-	public void SetResults(List<GearRecommendation> recs, PlayerClass filter)
+	public void SetResults(List<GearRecommendation> recs, PlayerClass filter,
+		PlayerStats stats = null, List<BossInfo> nextBosses = null,
+		List<CombinationResult> combos = null)
 	{
 		_allRecs = recs;
+		_allCombos = combos;
+		_mergedItems = UpgradeItemBuilder.Build(recs, combos);
 		_activeFilter = filter;
-		_classFilter.SelectedClass = filter;
+		_stats = stats;
+		_bosses = nextBosses;
+		if (_classFilter != null)
+			_classFilter.SelectedClass = filter;
+		BuildLayout();
 		RenderList();
 	}
 
+	private bool IsSectionCollapsed(string name) => _collapsed.GetValueOrDefault(name, false);
+
 	private void RenderList()
 	{
+		if (_list == null) return;
 		_list.Clear();
 
-		if (_allRecs == null || _allRecs.Count == 0)
+		if (_mergedItems == null)
+		{
+			_list.Add(new UIEmptyMessage("Scanning for upgrades..."));
+			return;
+		}
+		if (_mergedItems.Count == 0)
 		{
 			_list.Add(new UIEmptyMessage("No upgrades available at your current tier."));
 			return;
 		}
 
-		var filtered = new List<GearRecommendation>();
-		foreach (var rec in _allRecs)
+		var filtered = new List<UpgradeItem>();
+		foreach (var upgrade in _mergedItems)
 		{
-			if (CombinationItemTypes?.Contains(rec.ItemType) == true)
+			var item = Terraria.ID.ContentSamples.ItemsByType.GetValueOrDefault(upgrade.ItemType);
+			if (item != null && !ClassDetector.ItemMatchesClass(item, _activeFilter, strict: true))
 				continue;
-			var item = Terraria.ID.ContentSamples.ItemsByType.GetValueOrDefault(rec.ItemType);
-			if (item != null && !ClassDetector.ItemMatchesClass(item, _activeFilter))
-				continue;
-			filtered.Add(rec);
+			filtered.Add(upgrade);
 		}
 
-		var weapons = filtered.FindAll(r => r.Category == GearCategory.Weapon);
-		var armor = filtered.FindAll(r => r.Category == GearCategory.Armor);
-		var accessories = filtered.FindAll(r => r.Category == GearCategory.Accessory);
-		var tools = filtered.FindAll(r => r.Category == GearCategory.Tool);
+		// Group by acquisition method
+		var craftable = filtered.FindAll(r => r.Acquisition == AcquisitionMethod.Craftable);
+		var bossDrops = filtered.FindAll(r => r.Acquisition == AcquisitionMethod.BossDrop);
+		var shopItems = filtered.FindAll(r => r.Acquisition == AcquisitionMethod.Shop);
+		var mobDrops = filtered.FindAll(r => r.Acquisition == AcquisitionMethod.MobDrop);
+		var other = filtered.FindAll(r =>
+			r.Acquisition is AcquisitionMethod.Event or AcquisitionMethod.Fishing
+			or AcquisitionMethod.Exploration or AcquisitionMethod.Unknown);
 
-		if (weapons.Count > 0)
+		// Craftable items sub-grouped by category
+		if (craftable.Count > 0)
 		{
-			_list.Add(new UISectionHeader("Weapons"));
-			foreach (var r in weapons)
-				_list.Add(new UIGearRecommendationRow(r, type => OnAnalyzeItem?.Invoke(type)));
+			AddCategorySection("Craftable Weapons", craftable.FindAll(r => r.Category == GearCategory.Weapon));
+			AddCategorySection("Craftable Armor", craftable.FindAll(r => r.Category == GearCategory.Armor));
+			AddCategorySection("Craftable Accessories", craftable.FindAll(r => r.Category == GearCategory.Accessory));
+			AddCategorySection("Craftable Tools", craftable.FindAll(r => r.Category == GearCategory.Tool));
 		}
-		if (armor.Count > 0)
-		{
-			_list.Add(new UISectionHeader("Armor"));
-			foreach (var r in armor)
-				_list.Add(new UIGearRecommendationRow(r, type => OnAnalyzeItem?.Invoke(type)));
-		}
-		if (accessories.Count > 0)
-		{
-			_list.Add(new UISectionHeader("Accessories"));
-			foreach (var r in accessories)
-				_list.Add(new UIGearRecommendationRow(r, type => OnAnalyzeItem?.Invoke(type)));
-		}
-		if (tools.Count > 0)
-		{
-			_list.Add(new UISectionHeader("Tools"));
-			foreach (var r in tools)
-				_list.Add(new UIGearRecommendationRow(r, type => OnAnalyzeItem?.Invoke(type)));
-		}
+
+		AddCategorySection("Boss Drops", bossDrops);
+		AddCategorySection("Shop Items", shopItems);
+		AddCategorySection("Mob Drops", mobDrops);
+		if (other.Count > 0)
+			AddCategorySection("Events & Other", other);
 
 		if (filtered.Count == 0)
 			_list.Add(new UIEmptyMessage("No upgrades for this class."));
+	}
+
+	private const int InitialShowCount = 8;
+	private readonly Dictionary<string, bool> _showAll = [];
+
+	private void AddCategorySection(string name, List<UpgradeItem> items)
+	{
+		if (items.Count == 0) return;
+
+		bool collapsed = IsSectionCollapsed(name);
+		string headerText = $"{name} ({items.Count})";
+		_list.Add(new global::CraftPathOptimizer.UI.Panels.UIDashboardSectionHeader(headerText, collapsed, () =>
+		{
+			_collapsed[name] = !collapsed;
+			RenderList();
+		}));
+
+		if (collapsed) return;
+
+		bool showAll = _showAll.GetValueOrDefault(name, false);
+		int limit = showAll ? items.Count : Math.Min(items.Count, InitialShowCount);
+
+		for (int i = 0; i < limit; i++)
+			_list.Add(new UIUpgradeItemRow(items[i], type => OnAnalyzeItem?.Invoke(type)));
+
+		if (!showAll && items.Count > InitialShowCount)
+		{
+			int remaining = items.Count - InitialShowCount;
+			var showMoreBtn = new UIShowMoreButton($"Show {remaining} more...", () =>
+			{
+				_showAll[name] = true;
+				RenderList();
+			});
+			_list.Add(showMoreBtn);
+		}
+		else if (showAll && items.Count > InitialShowCount)
+		{
+			var showLessBtn = new UIShowMoreButton("Show less", () =>
+			{
+				_showAll[name] = false;
+				RenderList();
+			});
+			_list.Add(showLessBtn);
+		}
+	}
+}
+
+/// <summary>Clickable "Show X more..." / "Show less" button.</summary>
+internal class UIShowMoreButton : UIElement
+{
+	private readonly string _text;
+	private readonly Action _onClick;
+
+	public UIShowMoreButton(string text, Action onClick)
+	{
+		_text = text;
+		_onClick = onClick;
+		Width.Set(0, 1f);
+		Height.Set(22f, 0f);
+	}
+
+	public override void LeftClick(UIMouseEvent evt)
+	{
+		base.LeftClick(evt);
+		_onClick?.Invoke();
+	}
+
+	protected override void DrawSelf(SpriteBatch spriteBatch)
+	{
+		var dims = GetDimensions();
+		bool hover = IsMouseHovering;
+		Color color = hover ? new Color(120, 180, 255) : new Color(80, 130, 200);
+		Utils.DrawBorderString(spriteBatch, _text,
+			new Vector2(dims.X + 14f, dims.Y + 3f), color, 0.55f);
 	}
 }
 

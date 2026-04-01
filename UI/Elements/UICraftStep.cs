@@ -7,6 +7,7 @@ using Terraria.ID;
 using Terraria.UI;
 using Terraria.Map;
 using CraftPathOptimizer.Content.Graph;
+using CraftPathOptimizer.UI;
 
 namespace CraftPathOptimizer.UI.Elements;
 
@@ -27,8 +28,16 @@ public class UICraftStep : UIElement
 			_outputItem.SetDefaults(step.ItemType);
 
 		Width.Set(0, 1f);
-		// Height: header line + one line per input + optional condition line + padding
-		float h = 28f + _step.Inputs.Count * 18f + 8f;
+		// Height: header line + inputs + alternate sources + optional condition line + padding
+		float h = 28f + 8f;
+		foreach (var input in _step.Inputs)
+		{
+			h += 18f;
+			// Extra lines for alternate sources on NeedToAcquire inputs
+			if (input.Source == CraftStepInputSource.NeedToAcquire
+				&& input.AcquireSources != null && input.AcquireSources.Count > 1)
+				h += System.Math.Min(input.AcquireSources.Count - 1, 2) * 14f;
+		}
 		if (_step.ConditionDescription != null)
 			h += 18f;
 		Height.Set(h, 0f);
@@ -99,10 +108,31 @@ public class UICraftStep : UIElement
 					annotColor = Color.Cyan;
 					break;
 				default:
-					annotation = input.AcquireHint != null
-						? $" ({input.AcquireHint})"
-						: " (need to acquire)";
-					annotColor = new Color(255, 150, 150);
+					if (input.AcquireSources != null && input.AcquireSources.Count > 0)
+					{
+						var best = Content.Graph.ItemSource.PickBest(input.AcquireSources);
+						annotation = $" — {best.Description}";
+						annotColor = UIHelper.GetSourceColor(best.Type);
+
+						// Append drop rate if available
+						if (best.DropRate > 0 && best.DropRate < 1f)
+							annotation += $" (1/{(int)(1f / best.DropRate)})";
+					}
+					else if (input.AcquireHint != null)
+					{
+						annotation = $" — {input.AcquireHint}";
+						string hint = input.AcquireHint;
+						annotColor = hint.StartsWith("Drop:") ? UIHelper.GetSourceColor(Content.Graph.ItemSourceType.NPCDrop)
+							: hint.StartsWith("Buy:") ? UIHelper.GetSourceColor(Content.Graph.ItemSourceType.NPCShop)
+							: hint.StartsWith("Mine:") ? UIHelper.GetSourceColor(Content.Graph.ItemSourceType.Gathering)
+							: hint.StartsWith("Open:") ? UIHelper.GetSourceColor(Content.Graph.ItemSourceType.BagDrop)
+							: new Color(255, 150, 150);
+					}
+					else
+					{
+						annotation = " (need to acquire)";
+						annotColor = new Color(255, 150, 150);
+					}
 					break;
 			}
 
@@ -111,6 +141,25 @@ public class UICraftStep : UIElement
 			Utils.DrawBorderString(spriteBatch, annotation, new Vector2(x + 20f + inputWidth, inputY), annotColor, 0.65f);
 
 			inputY += 18f;
+
+			// Alternate sources for NeedToAcquire inputs
+			if (input.Source == CraftStepInputSource.NeedToAcquire
+				&& input.AcquireSources != null && input.AcquireSources.Count > 1)
+			{
+				var best = Content.Graph.ItemSource.PickBest(input.AcquireSources);
+				int altShown = 0;
+				foreach (var src in input.AcquireSources)
+				{
+					if (altShown >= 2) break;
+					if (src == best) continue;
+					string altText = $"     Also: {src.Description}";
+					if (altText.Length > 45) altText = altText[..44] + "..";
+					Utils.DrawBorderString(spriteBatch, altText,
+						new Vector2(x + 20f, inputY), new Color(130, 130, 160), 0.55f);
+					inputY += 14f;
+					altShown++;
+				}
+			}
 		}
 
 		// Condition warning

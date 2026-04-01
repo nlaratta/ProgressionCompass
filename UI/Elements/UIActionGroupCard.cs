@@ -26,6 +26,10 @@ public class UIActionGroupCard : UIElement
 		foreach (var item in group.Items)
 		{
 			h += 26f;
+			if (item.IsEquipped)
+				h += 14f;
+			if (item.GoalAttribution != null)
+				h += 14f;
 			if (item.Ingredients != null)
 				h += item.Ingredients.Count * 16f;
 			if (item.AllSources != null && item.AllSources.Count > 1)
@@ -67,6 +71,22 @@ public class UIActionGroupCard : UIElement
 		{
 			DrawActionItem(spriteBatch, item, x + 14f, itemY, dims.Width - 18f);
 			itemY += 26f;
+
+			// Equipped warning
+			if (item.IsEquipped)
+			{
+				Utils.DrawBorderString(spriteBatch, "[E] Currently equipped — unequip to use",
+					new Vector2(x + 36f, itemY), new Color(255, 200, 60), 0.48f);
+				itemY += 14f;
+			}
+
+			// Goal attribution
+			if (item.GoalAttribution != null)
+			{
+				Utils.DrawBorderString(spriteBatch, item.GoalAttribution,
+					new Vector2(x + 36f, itemY), new Color(140, 140, 170), 0.45f);
+				itemY += 14f;
+			}
 
 			if (item.Ingredients != null)
 			{
