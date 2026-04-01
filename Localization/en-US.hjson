@@ -3,6 +3,8 @@ Mods: {
 		Keybinds: {
 			ToggleCraftPath.DisplayName: Toggle Craft Path
 			"Toggle Craft Path.DisplayName": Toggle  Craft  Path
+			InspectHoveredItem.DisplayName: Inspect Hovered Item
+			"Inspect Hovered Item.DisplayName": Inspect Hovered Item
 		}
 
 		Configs: {
