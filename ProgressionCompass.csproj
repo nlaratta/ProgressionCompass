@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <Import Project="/Volumes/DevDrive1/SteamLibrary/steamapps/common/tModLoader/tMLMod.targets" />
   <PropertyGroup>
-    <AssemblyName>CraftPathOptimizer</AssemblyName>
-    <RootNamespace>CraftPathOptimizer</RootNamespace>
+    <AssemblyName>ProgressionCompass</AssemblyName>
+    <RootNamespace>ProgressionCompass</RootNamespace>
   </PropertyGroup>
 </Project>

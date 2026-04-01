@@ -1,7 +1,7 @@
 using Terraria;
 using Terraria.ModLoader;
 
-namespace CraftPathOptimizer.Content.Progression;
+namespace ProgressionCompass.Content.Progression;
 
 public enum PlayerClass
 {

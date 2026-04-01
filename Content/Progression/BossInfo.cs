@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace CraftPathOptimizer.Content.Progression;
+namespace ProgressionCompass.Content.Progression;
 
 /// <summary>
 /// Information about a boss the player can fight, including

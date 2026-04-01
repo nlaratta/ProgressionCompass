@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace CraftPathOptimizer.Content.Progression;
+namespace ProgressionCompass.Content.Progression;
 
 /// <summary>
 /// Data from a background progress scan, ready to display.

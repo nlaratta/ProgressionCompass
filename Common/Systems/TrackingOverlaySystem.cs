@@ -7,11 +7,11 @@ using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.UI;
-using CraftPathOptimizer.Common.Players;
-using CraftPathOptimizer.Content.Tracking;
-using CraftPathOptimizer.UI;
+using ProgressionCompass.Common.Players;
+using ProgressionCompass.Content.Tracking;
+using ProgressionCompass.UI;
 
-namespace CraftPathOptimizer.Common.Systems;
+namespace ProgressionCompass.Common.Systems;
 
 public class TrackingOverlaySystem : ModSystem
 {
@@ -57,7 +57,7 @@ public class TrackingOverlaySystem : ModSystem
 		if (index != -1)
 		{
 			layers.Insert(index + 1, new LegacyGameInterfaceLayer(
-				"CraftPathOptimizer: Tracking Overlay",
+				"ProgressionCompass: Tracking Overlay",
 				delegate
 				{
 					if (!mainPanelOpen)

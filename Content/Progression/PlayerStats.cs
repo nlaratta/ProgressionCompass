@@ -1,4 +1,4 @@
-namespace CraftPathOptimizer.Content.Progression;
+namespace ProgressionCompass.Content.Progression;
 
 /// <summary>
 /// Snapshot of the player's current gear stats, used by the

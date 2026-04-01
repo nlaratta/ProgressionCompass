@@ -5,9 +5,9 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Tracking;
+using ProgressionCompass.Content.Tracking;
 
-namespace CraftPathOptimizer.UI.Elements;
+namespace ProgressionCompass.UI.Elements;
 
 /// <summary>
 /// Renders a single action group as a card: header with icon + title,

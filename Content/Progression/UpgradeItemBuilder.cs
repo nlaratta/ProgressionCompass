@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace CraftPathOptimizer.Content.Progression;
+namespace ProgressionCompass.Content.Progression;
 
 /// <summary>
 /// Merges GearRecommendation and CombinationResult lists into a unified

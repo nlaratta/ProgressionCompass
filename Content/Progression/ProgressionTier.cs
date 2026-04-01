@@ -1,6 +1,6 @@
 using Terraria;
 
-namespace CraftPathOptimizer.Content.Progression;
+namespace ProgressionCompass.Content.Progression;
 
 public enum Tier
 {

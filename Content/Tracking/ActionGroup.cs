@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using CraftPathOptimizer.Content.Graph;
+using ProgressionCompass.Content.Graph;
 
-namespace CraftPathOptimizer.Content.Tracking;
+namespace ProgressionCompass.Content.Tracking;
 
 public enum ActionType
 {

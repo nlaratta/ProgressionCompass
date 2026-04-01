@@ -1,13 +1,15 @@
-Craft Path Optimizer computes the optimal crafting path for any item in the game.
+Progression Compass — your guide through Terraria's crafting and progression.
 
-Select a target item and instantly see:
-- Full dependency tree from raw materials to final product
-- Material checklist showing what you own vs. what you need
-- Where to get missing materials (drops, shops, fishing, etc.)
-- Step-by-step crafting order
+Features:
+- Optimal crafting paths for any item with full dependency trees
+- Material checklist with source info (drops, shops, shimmer, events, fishing)
+- Step-by-step crafting order with alternate sources and drop rates
+- Gear upgrade recommendations by class (Melee/Ranged/Mage/Summoner)
+- Boss progression tracking with summon hints
+- Item tracking with TODO action plan and HUD overlay
+- "Ready to Craft" / "Almost Ready" / "Building Toward" dashboard
 
 Works automatically with all loaded mods (Calamity, Thorium, etc.).
-Scans your full inventory, banks, equipment, and optionally nearby chests.
-Queue multiple targets to see a unified material list.
+Scans inventory, banks, equipment, nearby chests, and Magic Storage.
 
 Client-side only — no server impact in multiplayer.

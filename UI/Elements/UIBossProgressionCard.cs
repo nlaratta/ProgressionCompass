@@ -6,9 +6,9 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Progression;
+using ProgressionCompass.Content.Progression;
 
-namespace CraftPathOptimizer.UI.Elements;
+namespace ProgressionCompass.UI.Elements;
 
 /// <summary>
 /// Displays 2-3 upcoming bosses the player should fight, with

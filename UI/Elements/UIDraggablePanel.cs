@@ -5,9 +5,9 @@ using Terraria.GameContent;
 using Terraria.GameContent.UI.Elements;
 using Terraria.ModLoader;
 using Terraria.UI;
-using CraftPathOptimizer.Common.Systems;
+using ProgressionCompass.Common.Systems;
 
-namespace CraftPathOptimizer.UI.Elements;
+namespace ProgressionCompass.UI.Elements;
 
 /// <summary>
 /// A UIPanel that can be dragged by its header and resized from the bottom-right corner.

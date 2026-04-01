@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Terraria;
 
-namespace CraftPathOptimizer.Content.Graph;
+namespace ProgressionCompass.Content.Graph;
 
 /// <summary>
 /// A node in the crafting dependency tree. Each variant represents a different

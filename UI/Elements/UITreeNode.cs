@@ -7,9 +7,9 @@ using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.UI;
 using Terraria.Map;
-using CraftPathOptimizer.Content.Graph;
+using ProgressionCompass.Content.Graph;
 
-namespace CraftPathOptimizer.UI.Elements;
+namespace ProgressionCompass.UI.Elements;
 
 /// <summary>
 /// A single row in the flattened tree view. Each row represents one node

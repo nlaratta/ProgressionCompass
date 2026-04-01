@@ -3,9 +3,9 @@ using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.ModLoader;
 using Terraria.UI;
-using CraftPathOptimizer.UI;
+using ProgressionCompass.UI;
 
-namespace CraftPathOptimizer.Common.Systems;
+namespace ProgressionCompass.Common.Systems;
 
 /// <summary>
 /// Manages the UI lifecycle: creates the UserInterface and UIState,
@@ -72,7 +72,7 @@ public class CraftPathUISystem : ModSystem
 		if (mouseTextIndex != -1)
 		{
 			layers.Insert(mouseTextIndex, new LegacyGameInterfaceLayer(
-				"CraftPathOptimizer: Craft Path UI",
+				"ProgressionCompass: Craft Path UI",
 				delegate
 				{
 					if (CraftPathInterface?.CurrentState != null)

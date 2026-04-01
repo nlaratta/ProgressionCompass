@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
-using CraftPathOptimizer.Common.Systems;
+using ProgressionCompass.Common.Systems;
 
-namespace CraftPathOptimizer.Content.Progression;
+namespace ProgressionCompass.Content.Progression;
 
 /// <summary>
 /// Provides boss progression data. Integrates with Boss Checklist if installed,
@@ -84,7 +84,7 @@ public static class BossDatabase
 		try
 		{
 			// Boss Checklist Mod.Call API requires (string, Mod, string apiVersion)
-			var callerMod = global::CraftPathOptimizer.CraftPathOptimizer.Instance;
+			var callerMod = ProgressionCompassMod.Instance;
 			var data = bossChecklist.Call("GetBossInfoDictionary", callerMod, "1.1")
 				as Dictionary<string, Dictionary<string, object>>;
 
@@ -160,7 +160,7 @@ public static class BossDatabase
 				}
 				catch (Exception ex)
 				{
-					global::CraftPathOptimizer.Common.Log.Warn($"Failed to parse boss entry: {ex.Message}");
+					Common.Log.Warn($"Failed to parse boss entry: {ex.Message}");
 				}
 			}
 

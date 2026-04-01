@@ -6,10 +6,10 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.GameContent.UI.Elements;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Tracking;
-using CraftPathOptimizer.UI.Elements;
+using ProgressionCompass.Content.Tracking;
+using ProgressionCompass.UI.Elements;
 
-namespace CraftPathOptimizer.UI.Panels;
+namespace ProgressionCompass.UI.Panels;
 
 /// <summary>
 /// Anchored panel showing tracked items and next actions.

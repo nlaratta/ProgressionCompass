@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using CraftPathOptimizer.Content.Graph;
+using ProgressionCompass.Content.Graph;
 
-namespace CraftPathOptimizer.Content.Progression;
+namespace ProgressionCompass.Content.Progression;
 
 /// <summary>
 /// Unified data model that merges GearRecommendation and CombinationResult

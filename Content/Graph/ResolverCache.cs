@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace CraftPathOptimizer.Content.Graph;
+namespace ProgressionCompass.Content.Graph;
 
 /// <summary>
 /// Caches resolved trees keyed by (itemType, quantity, inventoryHash).

@@ -1,11 +1,11 @@
 using System.ComponentModel;
 using Terraria.ModLoader.Config;
 
-namespace CraftPathOptimizer.Common;
+namespace ProgressionCompass.Common;
 
 /// <summary>
 /// Client-side mod configuration. Persisted across sessions.
-/// Accessible in-game via Settings -> Mod Configuration -> Craft Path Optimizer.
+/// Accessible in-game via Settings -> Mod Configuration -> Progression Compass.
 /// Labels and tooltips are defined in Localization/en-US.hjson.
 /// </summary>
 public class CraftPathConfig : ModConfig

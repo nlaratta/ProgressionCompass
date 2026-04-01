@@ -4,7 +4,7 @@ using System.Linq;
 using Terraria;
 using Terraria.ModLoader;
 
-namespace CraftPathOptimizer.Content.Graph;
+namespace ProgressionCompass.Content.Graph;
 
 /// <summary>
 /// Aggregates all items the player owns across personal storage, equipped gear,

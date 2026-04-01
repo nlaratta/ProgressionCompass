@@ -2,10 +2,10 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Terraria.GameContent.UI.Elements;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Graph;
-using CraftPathOptimizer.UI.Elements;
+using ProgressionCompass.Content.Graph;
+using ProgressionCompass.UI.Elements;
 
-namespace CraftPathOptimizer.UI.Panels;
+namespace ProgressionCompass.UI.Panels;
 
 /// <summary>
 /// Displays the crafting dependency tree as a flattened list of UITreeRow elements.
@@ -70,7 +70,7 @@ public class DependencyTreePanel : UIElement
 		bool hasChildren = children.Count > 0;
 
 		var row = new UITreeRow(node, depth, hasChildren, isLastChild);
-		var config = Terraria.ModLoader.ModContent.GetInstance<global::CraftPathOptimizer.Common.CraftPathConfig>();
+		var config = Terraria.ModLoader.ModContent.GetInstance<Common.CraftPathConfig>();
 		bool autoExpand = config?.AutoExpandTree ?? true;
 		row.IsExpanded = autoExpand && depth < 3;
 		row.OnToggleExpand += OnRowToggled;

@@ -6,10 +6,10 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.GameContent.UI.Elements;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Graph;
-using CraftPathOptimizer.UI.Elements;
+using ProgressionCompass.Content.Graph;
+using ProgressionCompass.UI.Elements;
 
-namespace CraftPathOptimizer.UI.Panels;
+namespace ProgressionCompass.UI.Panels;
 
 /// <summary>
 /// Flat material checklist showing what the player owns vs. what they need.
@@ -126,7 +126,7 @@ public class MaterialListPanel : UIElement
 		_list.Add(new UIItemInfoHeader(itemType, item.Name ?? "?"));
 
 		// Sources
-		var sourceSystem = Terraria.ModLoader.ModContent.GetInstance<global::CraftPathOptimizer.Common.Systems.ItemSourceSystem>();
+		var sourceSystem = Terraria.ModLoader.ModContent.GetInstance<Common.Systems.ItemSourceSystem>();
 		var sources = sourceSystem?.GetSources(itemType) ?? [];
 
 		if (sources.Count > 0)
@@ -153,7 +153,7 @@ public class MaterialListPanel : UIElement
 	{
 		if (itemType <= Terraria.ID.ItemID.None) return;
 
-		var sourceSystem = Terraria.ModLoader.ModContent.GetInstance<global::CraftPathOptimizer.Common.Systems.ItemSourceSystem>();
+		var sourceSystem = Terraria.ModLoader.ModContent.GetInstance<Common.Systems.ItemSourceSystem>();
 		var sources = sourceSystem?.GetSources(itemType);
 		if (sources == null || sources.Count == 0) return;
 
@@ -197,7 +197,7 @@ public class MaterialListPanel : UIElement
 		int selectedType = result.Tree.ItemType;
 		if (selectedType <= Terraria.ID.ItemID.None) return;
 
-		var recipeIndex = Terraria.ModLoader.ModContent.GetInstance<global::CraftPathOptimizer.Common.Systems.RecipeIndexSystem>();
+		var recipeIndex = Terraria.ModLoader.ModContent.GetInstance<Common.Systems.RecipeIndexSystem>();
 		if (recipeIndex?.RecipesByIngredient == null) return;
 
 		if (!recipeIndex.RecipesByIngredient.TryGetValue(selectedType, out var recipes) || recipes.Count == 0)

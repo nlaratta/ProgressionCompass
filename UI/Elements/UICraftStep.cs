@@ -6,10 +6,10 @@ using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.UI;
 using Terraria.Map;
-using CraftPathOptimizer.Content.Graph;
-using CraftPathOptimizer.UI;
+using ProgressionCompass.Content.Graph;
+using ProgressionCompass.UI;
 
-namespace CraftPathOptimizer.UI.Elements;
+namespace ProgressionCompass.UI.Elements;
 
 /// <summary>
 /// Renders a single step in the craft order: step number, output item,

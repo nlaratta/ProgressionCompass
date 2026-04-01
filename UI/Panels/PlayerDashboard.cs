@@ -7,10 +7,10 @@ using Terraria.GameContent;
 using Terraria.GameContent.UI.Elements;
 using Terraria.ID;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Progression;
-using CraftPathOptimizer.UI.Elements;
+using ProgressionCompass.Content.Progression;
+using ProgressionCompass.UI.Elements;
 
-namespace CraftPathOptimizer.UI.Panels;
+namespace ProgressionCompass.UI.Panels;
 
 /// <summary>
 /// Left-side progression dashboard. Single scrollable column showing:
@@ -192,12 +192,12 @@ public class PlayerDashboard : UIElement
 		if (!showAll && totalCount > InitialShowCount)
 		{
 			int remaining = totalCount - InitialShowCount;
-			_list.Add(new global::CraftPathOptimizer.Common.Systems.UIShowMoreButton(
+			_list.Add(new Common.Systems.UIShowMoreButton(
 				$"Show {remaining} more...", () => { _showAll[section] = true; Rebuild(); }));
 		}
 		else if (showAll && totalCount > InitialShowCount)
 		{
-			_list.Add(new global::CraftPathOptimizer.Common.Systems.UIShowMoreButton(
+			_list.Add(new Common.Systems.UIShowMoreButton(
 				"Show less", () => { _showAll[section] = false; Rebuild(); }));
 		}
 	}

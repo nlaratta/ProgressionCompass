@@ -2,11 +2,11 @@ using System.Collections.Generic;
 using Terraria;
 using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
-using CraftPathOptimizer.Common.Systems;
-using CraftPathOptimizer.Content.Graph;
-using CraftPathOptimizer.Content.Tracking;
+using ProgressionCompass.Common.Systems;
+using ProgressionCompass.Content.Graph;
+using ProgressionCompass.Content.Tracking;
 
-namespace CraftPathOptimizer.Common.Players;
+namespace ProgressionCompass.Common.Players;
 
 /// <summary>
 /// Per-player tracking state: saves/loads pinned goals, periodically refreshes
@@ -56,7 +56,7 @@ public class TrackingPlayer : ModPlayer
 		if (recipeIndex?.RecipesByResult == null)
 			return;
 
-		var config = ModContent.GetInstance<global::CraftPathOptimizer.Common.CraftPathConfig>();
+		var config = ModContent.GetInstance<Common.CraftPathConfig>();
 		float chestRange = config?.ChestScanRange ?? InventoryScanner.DefaultChestRangeTiles;
 		var inventory = InventoryScanner.Scan(ChestsEnabled, chestRange);
 
@@ -139,7 +139,7 @@ public class TrackingPlayer : ModPlayer
 	public override void OnEnterWorld()
 	{
 		// Sync chest toggle from config before first refresh
-		var config = ModContent.GetInstance<global::CraftPathOptimizer.Common.CraftPathConfig>();
+		var config = ModContent.GetInstance<Common.CraftPathConfig>();
 		if (config != null)
 			ChestsEnabled = config.ChestScanDefault;
 

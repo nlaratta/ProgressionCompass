@@ -6,11 +6,11 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.ModLoader;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Progression;
-using CraftPathOptimizer.UI.Elements;
-using CraftPathOptimizer.UI.Panels;
+using ProgressionCompass.Content.Progression;
+using ProgressionCompass.UI.Elements;
+using ProgressionCompass.UI.Panels;
 
-namespace CraftPathOptimizer.Common.Systems;
+namespace ProgressionCompass.Common.Systems;
 
 /// <summary>
 /// Manages the separate Upgrade Recommendations window.
@@ -77,7 +77,7 @@ public class UpgradeWindowSystem : ModSystem
 		if (index != -1)
 		{
 			layers.Insert(index, new LegacyGameInterfaceLayer(
-				"CraftPathOptimizer: Upgrade Recommendations",
+				"ProgressionCompass: Upgrade Recommendations",
 				delegate
 				{
 					WindowInterface.Draw(Main.spriteBatch, _lastGameTime);
@@ -122,7 +122,7 @@ public class UpgradeRecommendationsState : UIState
 /// The upgrade recommendations panel — draggable window showing
 /// gear upgrades grouped by category.
 /// </summary>
-internal class UpgradeRecommendationsPanel : global::CraftPathOptimizer.UI.Elements.UIDraggablePanel
+internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 {
 	private Terraria.GameContent.UI.Elements.UIList _list;
 	private Terraria.GameContent.UI.Elements.UIScrollbar _scrollbar;
@@ -136,8 +136,8 @@ internal class UpgradeRecommendationsPanel : global::CraftPathOptimizer.UI.Eleme
 	private List<BossInfo> _bosses;
 	private readonly Dictionary<string, bool> _collapsed = [];
 
-	private global::CraftPathOptimizer.UI.Elements.UIPlayerStageCard _stageCard;
-	private global::CraftPathOptimizer.UI.Elements.UIBossProgressionCard _bossCard;
+	private UI.Elements.UIPlayerStageCard _stageCard;
+	private UI.Elements.UIBossProgressionCard _bossCard;
 
 	public event Action<int> OnAnalyzeItem;
 	public event Action OnCloseClicked;
@@ -202,13 +202,13 @@ internal class UpgradeRecommendationsPanel : global::CraftPathOptimizer.UI.Eleme
 
 		if (_stats != null)
 		{
-			_stageCard = new global::CraftPathOptimizer.UI.Elements.UIPlayerStageCard(tier, detected, _stats, _activeFilter);
+			_stageCard = new UI.Elements.UIPlayerStageCard(tier, detected, _stats, _activeFilter);
 			_stageCard.Top.Set(52f, 0f);
 			_stageCard.Left.Set(0f, 0f);
 			Append(_stageCard);
 		}
 
-		_bossCard = new global::CraftPathOptimizer.UI.Elements.UIBossProgressionCard(_bosses);
+		_bossCard = new UI.Elements.UIBossProgressionCard(_bosses);
 		_bossCard.Top.Set(52f, 0f);
 		_bossCard.Left.Set(210f, 0f);
 		_bossCard.Width.Set(-214f, 1f);
@@ -315,7 +315,7 @@ internal class UpgradeRecommendationsPanel : global::CraftPathOptimizer.UI.Eleme
 
 		bool collapsed = IsSectionCollapsed(name);
 		string headerText = $"{name} ({items.Count})";
-		_list.Add(new global::CraftPathOptimizer.UI.Panels.UIDashboardSectionHeader(headerText, collapsed, () =>
+		_list.Add(new UI.Panels.UIDashboardSectionHeader(headerText, collapsed, () =>
 		{
 			_collapsed[name] = !collapsed;
 			RenderList();

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using CraftPathOptimizer.Common.Systems;
+using ProgressionCompass.Common.Systems;
 
-namespace CraftPathOptimizer.Content.Graph;
+namespace ProgressionCompass.Content.Graph;
 
 /// <summary>
 /// Manages a queue of target items and resolves them sequentially,

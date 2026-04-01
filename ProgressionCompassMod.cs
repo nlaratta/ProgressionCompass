@@ -1,10 +1,10 @@
 using Terraria.ModLoader;
 
-namespace CraftPathOptimizer;
+namespace ProgressionCompass;
 
-public class CraftPathOptimizer : Mod
+public class ProgressionCompassMod : Mod
 {
-	public static CraftPathOptimizer Instance { get; private set; }
+	public static ProgressionCompassMod Instance { get; private set; }
 	public static ModKeybind ToggleUIKeybind { get; private set; }
 	public static ModKeybind InspectItemKeybind { get; private set; }
 

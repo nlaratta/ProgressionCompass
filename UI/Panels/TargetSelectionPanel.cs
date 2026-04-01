@@ -7,9 +7,9 @@ using Terraria.GameContent.UI.Elements;
 using Terraria.ID;
 using Terraria.Localization;
 using Terraria.UI;
-using CraftPathOptimizer.UI.Elements;
+using ProgressionCompass.UI.Elements;
 
-namespace CraftPathOptimizer.UI.Panels;
+namespace ProgressionCompass.UI.Panels;
 
 /// <summary>
 /// Top section of the UI: search bar + filtered item results dropdown.
@@ -45,7 +45,7 @@ public class TargetSelectionPanel : UIElement
 		Append(_searchBarPanel);
 
 		// Terraria's built-in search bar — handles all input, focus, IME properly
-		_searchBar = new UISearchBar(Language.GetText("Mods.CraftPathOptimizer.UI.SearchPlaceholder"), 0.8f);
+		_searchBar = new UISearchBar(Language.GetText("Mods.ProgressionCompass.UI.SearchPlaceholder"), 0.8f);
 		_searchBar.Width.Set(0, 1f);
 		_searchBar.Height.Set(36f, 0f);
 		_searchBar.HAlign = 0f;
@@ -112,7 +112,7 @@ public class TargetSelectionPanel : UIElement
 		string search = searchText.ToLowerInvariant();
 		int count = 0;
 
-		var config = Terraria.ModLoader.ModContent.GetInstance<global::CraftPathOptimizer.Common.CraftPathConfig>();
+		var config = Terraria.ModLoader.ModContent.GetInstance<Common.CraftPathConfig>();
 		int maxResults = config?.MaxSearchResults ?? _maxResults;
 
 		foreach (var (type, item) in ContentSamples.ItemsByType)

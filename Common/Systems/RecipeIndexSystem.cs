@@ -3,7 +3,7 @@ using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
 
-namespace CraftPathOptimizer.Common.Systems;
+namespace ProgressionCompass.Common.Systems;
 
 /// <summary>
 /// Builds fast lookup dictionaries from the global recipe array after all mods have

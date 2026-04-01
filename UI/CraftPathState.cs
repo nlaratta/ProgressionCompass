@@ -9,16 +9,16 @@ using Terraria.GameContent.UI.Elements;
 using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.UI;
-using CraftPathOptimizer.Common;
-using CraftPathOptimizer.Common.Systems;
-using CraftPathOptimizer.Content.Graph;
-using CraftPathOptimizer.Common.Players;
-using CraftPathOptimizer.Content.Progression;
-using CraftPathOptimizer.Content.Tracking;
-using CraftPathOptimizer.UI.Elements;
-using CraftPathOptimizer.UI.Panels;
+using ProgressionCompass.Common;
+using ProgressionCompass.Common.Systems;
+using ProgressionCompass.Content.Graph;
+using ProgressionCompass.Common.Players;
+using ProgressionCompass.Content.Progression;
+using ProgressionCompass.Content.Tracking;
+using ProgressionCompass.UI.Elements;
+using ProgressionCompass.UI.Panels;
 
-namespace CraftPathOptimizer.UI;
+namespace ProgressionCompass.UI;
 
 public class CraftPathState : UIState
 {
@@ -86,7 +86,7 @@ public class CraftPathState : UIState
 		float columnH = -34f - statusBarH - 16f; // Height for side columns
 
 		// ── Header row (spans content area) ─────────────────────
-		var title = new UIText("Craft Path Optimizer", 0.9f);
+		var title = new UIText("Progression Compass", 0.9f);
 		title.Top.Set(yPos + 2f, 0f);
 		title.Left.Set(contentLeft, 0f);
 		_mainPanel.Append(title);
@@ -410,7 +410,7 @@ public class CraftPathState : UIState
 			}
 			catch (Exception ex)
 			{
-				global::CraftPathOptimizer.Common.Log.Warn($"Resolver error: {ex.Message}");
+				Common.Log.Warn($"Resolver error: {ex.Message}");
 			}
 			finally { _resolving = false; }
 		});
@@ -471,7 +471,7 @@ public class CraftPathState : UIState
 			}
 			catch (Exception ex)
 			{
-				global::CraftPathOptimizer.Common.Log.Warn($"Progress scan error: {ex.Message}");
+				Common.Log.Warn($"Progress scan error: {ex.Message}");
 			}
 			finally { _scanningProgress = false; }
 		});

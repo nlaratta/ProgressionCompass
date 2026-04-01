@@ -6,9 +6,9 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Progression;
+using ProgressionCompass.Content.Progression;
 
-namespace CraftPathOptimizer.UI.Elements;
+namespace ProgressionCompass.UI.Elements;
 
 /// <summary>
 /// Unified row for displaying an upgrade item across dashboard and upgrade window.
@@ -240,7 +240,7 @@ public class UIUpgradeItemRow : UIElement
                 new Vector2(x + 46f, missingY), new Color(255, 150, 150), 0.5f);
 
             // Show best source for this missing item
-            var sourceSystem = Terraria.ModLoader.ModContent.GetInstance<global::CraftPathOptimizer.Common.Systems.ItemSourceSystem>();
+            var sourceSystem = Terraria.ModLoader.ModContent.GetInstance<Common.Systems.ItemSourceSystem>();
             var sources = sourceSystem?.GetSources(missingType);
             if (sources != null && sources.Count > 0)
             {

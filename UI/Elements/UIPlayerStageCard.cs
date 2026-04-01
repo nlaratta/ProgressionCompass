@@ -4,9 +4,9 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Progression;
+using ProgressionCompass.Content.Progression;
 
-namespace CraftPathOptimizer.UI.Elements;
+namespace ProgressionCompass.UI.Elements;
 
 /// <summary>
 /// Displays the player's current progression stats: tier, class,

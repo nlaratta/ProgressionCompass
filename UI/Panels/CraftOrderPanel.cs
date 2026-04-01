@@ -1,9 +1,9 @@
 using Terraria.GameContent.UI.Elements;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Graph;
-using CraftPathOptimizer.UI.Elements;
+using ProgressionCompass.Content.Graph;
+using ProgressionCompass.UI.Elements;
 
-namespace CraftPathOptimizer.UI.Panels;
+namespace ProgressionCompass.UI.Panels;
 
 /// <summary>
 /// Displays the topologically-sorted craft order as a step-by-step list.

@@ -4,9 +4,9 @@ using System.Linq;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
-using CraftPathOptimizer.Common.Systems;
+using ProgressionCompass.Common.Systems;
 
-namespace CraftPathOptimizer.Content.Graph;
+namespace ProgressionCompass.Content.Graph;
 
 /// <summary>
 /// Core algorithm: given a target item and player inventory, builds the optimal

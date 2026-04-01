@@ -3,10 +3,10 @@ using Microsoft.Xna.Framework;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
-using CraftPathOptimizer.Common.Systems;
-using CraftPathOptimizer.Content.Graph;
+using ProgressionCompass.Common.Systems;
+using ProgressionCompass.Content.Graph;
 
-namespace CraftPathOptimizer.Common;
+namespace ProgressionCompass.Common;
 
 /// <summary>
 /// In-game chat command for testing the resolver.
@@ -16,7 +16,7 @@ public class CraftPathTestCommand : ModCommand
 {
 	public override string Command => "cpo";
 	public override string Usage => "/cpo [zenith|terra|ankh|cell|cycle|stats|all]";
-	public override string Description => "Test the Craft Path Optimizer resolver";
+	public override string Description => "Test the Progression Compass resolver";
 	public override CommandType Type => CommandType.Chat;
 
 	public override void Action(CommandCaller caller, string input, string[] args)

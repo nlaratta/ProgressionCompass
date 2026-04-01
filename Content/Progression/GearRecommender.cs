@@ -4,10 +4,10 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.ModLoader;
-using CraftPathOptimizer.Common.Systems;
-using CraftPathOptimizer.Content.Graph;
+using ProgressionCompass.Common.Systems;
+using ProgressionCompass.Content.Graph;
 
-namespace CraftPathOptimizer.Content.Progression;
+namespace ProgressionCompass.Content.Progression;
 
 public enum GearCategory
 {

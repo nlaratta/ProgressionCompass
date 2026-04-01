@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Terraria;
 using Terraria.ID;
-using CraftPathOptimizer.Common.Systems;
-using CraftPathOptimizer.Content.Graph;
+using ProgressionCompass.Common.Systems;
+using ProgressionCompass.Content.Graph;
 
-namespace CraftPathOptimizer.Content.Tracking;
+namespace ProgressionCompass.Content.Tracking;
 
 /// <summary>
 /// Analyzes missing materials across all pinned goals and produces a prioritized,
@@ -124,7 +124,7 @@ public static class ActionClassifier
 					break;
 
 				case ItemSourceType.Event:
-					string eventKey = global::CraftPathOptimizer.Common.Systems.ItemSourceSystem.GetNPCEventName(bestSource.SourceEntityId)
+					string eventKey = Common.Systems.ItemSourceSystem.GetNPCEventName(bestSource.SourceEntityId)
 						?? bestSource.Description;
 					if (!eventItems.ContainsKey(eventKey))
 						eventItems[eventKey] = [];

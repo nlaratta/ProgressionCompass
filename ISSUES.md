@@ -1,4 +1,4 @@
-# Craft Path Optimizer — Issue Tracker
+# Progression Compass — Issue Tracker
 
 ## Critical (Release Blockers)
 

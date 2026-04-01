@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace CraftPathOptimizer.Content.Graph;
+namespace ProgressionCompass.Content.Graph;
 
 /// <summary>
 /// The complete output of the dependency resolver for one or more target items.

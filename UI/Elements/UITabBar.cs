@@ -6,7 +6,7 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.UI;
 
-namespace CraftPathOptimizer.UI.Elements;
+namespace ProgressionCompass.UI.Elements;
 
 /// <summary>
 /// A horizontal row of tabs with proper panel-style rendering.

@@ -1,4 +1,4 @@
-namespace CraftPathOptimizer.Content.Graph;
+namespace ProgressionCompass.Content.Graph;
 
 /// <summary>
 /// Tracks how many of an item the player owns and where those items are located.

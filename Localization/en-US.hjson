@@ -1,15 +1,13 @@
 Mods: {
-	CraftPathOptimizer: {
+	ProgressionCompass: {
 		Keybinds: {
-			ToggleCraftPath.DisplayName: Toggle Craft Path
-			"Toggle Craft Path.DisplayName": Toggle  Craft  Path
-			InspectHoveredItem.DisplayName: Inspect Hovered Item
+			"Toggle Craft Path.DisplayName": Toggle Progression Compass
 			"Inspect Hovered Item.DisplayName": Inspect Hovered Item
 		}
 
 		Configs: {
 			CraftPathConfig: {
-				DisplayName: Craft Path Optimizer
+				DisplayName: Progression Compass
 
 				Headers: {
 					InventoryScanning: Inventory Scanning
@@ -64,7 +62,7 @@ Mods: {
 		}
 
 		UI: {
-			Title: Craft Path Optimizer
+			Title: Progression Compass
 			SearchPlaceholder: Search items...
 			TabTree: Tree
 			TabMaterials: Materials
@@ -92,6 +90,7 @@ Mods: {
 			SourceFishing: Fish: {0}
 			SourceChest: Found in: {0}
 			SourceGathering: Mine: {0}
+			SourceShimmer: Shimmer: {0}
 			SourceEvent: Event: {0}
 			SourceUnknown: Unknown source
 			NoRecipe: No recipe found

@@ -2,21 +2,21 @@ using Microsoft.Xna.Framework.Input;
 using Terraria;
 using Terraria.GameInput;
 using Terraria.ModLoader;
-using CraftPathOptimizer.Common.Systems;
+using ProgressionCompass.Common.Systems;
 
-namespace CraftPathOptimizer.Common.Players;
+namespace ProgressionCompass.Common.Players;
 
 public class CraftPathPlayer : ModPlayer
 {
 	public override void ProcessTriggers(TriggersSet triggersSet)
 	{
-		if (CraftPathOptimizer.ToggleUIKeybind.JustPressed)
+		if (ProgressionCompassMod.ToggleUIKeybind.JustPressed)
 		{
 			ModContent.GetInstance<CraftPathUISystem>().ToggleUI();
 		}
 
 		// Inspect hovered item: opens panel and analyzes whatever item the cursor is on
-		if (CraftPathOptimizer.InspectItemKeybind.JustPressed)
+		if (ProgressionCompassMod.InspectItemKeybind.JustPressed)
 		{
 			// Main.HoverItem is set when the mouse is over any item slot in the UI
 			if (Main.HoverItem != null && Main.HoverItem.type > Terraria.ID.ItemID.None)

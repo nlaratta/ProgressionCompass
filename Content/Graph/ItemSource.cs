@@ -1,4 +1,4 @@
-namespace CraftPathOptimizer.Content.Graph;
+namespace ProgressionCompass.Content.Graph;
 
 public enum ItemSourceType
 {

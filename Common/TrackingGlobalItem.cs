@@ -1,9 +1,9 @@
 using Terraria;
 using Terraria.ModLoader;
-using CraftPathOptimizer.Common.Players;
-using CraftPathOptimizer.Common.Systems;
+using ProgressionCompass.Common.Players;
+using ProgressionCompass.Common.Systems;
 
-namespace CraftPathOptimizer.Common;
+namespace ProgressionCompass.Common;
 
 /// <summary>
 /// Detects when a tracked item is picked up and triggers a toast notification

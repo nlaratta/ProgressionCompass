@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
-using CraftPathOptimizer.Common.Systems;
-using CraftPathOptimizer.Content.Graph;
+using ProgressionCompass.Common.Systems;
+using ProgressionCompass.Content.Graph;
 
-namespace CraftPathOptimizer.Content.Progression;
+namespace ProgressionCompass.Content.Progression;
 
 /// <summary>
 /// A near-complete combination item: an accessory or weapon made by combining
@@ -121,7 +121,7 @@ public static class CombinationScanner
 			}
 			catch (Exception ex)
 			{
-				global::CraftPathOptimizer.Common.Log.Warn($"Combination resolve failed for item {outputType}: {ex.Message}");
+				Common.Log.Warn($"Combination resolve failed for item {outputType}: {ex.Message}");
 				continue;
 			}
 
@@ -229,7 +229,7 @@ public static class CombinationScanner
 			}
 			catch (Exception ex)
 			{
-				global::CraftPathOptimizer.Common.Log.Warn($"Sub-combination scan failed for {r.ItemType}: {ex.Message}");
+				Common.Log.Warn($"Sub-combination scan failed for {r.ItemType}: {ex.Message}");
 			}
 
 			milestones.Sort((a, b) => b.CompletionPercent.CompareTo(a.CompletionPercent));

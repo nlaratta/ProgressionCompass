@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using CraftPathOptimizer.Common.Systems;
-using CraftPathOptimizer.Content.Graph;
+using ProgressionCompass.Common.Systems;
+using ProgressionCompass.Content.Graph;
 
-namespace CraftPathOptimizer.Content.Tracking;
+namespace ProgressionCompass.Content.Tracking;
 
 /// <summary>
 /// Central hub for the tracking system. Owns pinned goals, runs the resolver

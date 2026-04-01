@@ -6,9 +6,9 @@ using Terraria.GameContent.ItemDropRules;
 using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.UI;
-using CraftPathOptimizer.Content.Graph;
+using ProgressionCompass.Content.Graph;
 
-namespace CraftPathOptimizer.Common.Systems;
+namespace ProgressionCompass.Common.Systems;
 
 /// <summary>
 /// Indexes all non-crafting item sources (NPC drops, shops) so the UI can show

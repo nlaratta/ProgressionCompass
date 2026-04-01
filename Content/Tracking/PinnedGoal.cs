@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using CraftPathOptimizer.Content.Graph;
+using ProgressionCompass.Content.Graph;
 
-namespace CraftPathOptimizer.Content.Tracking;
+namespace ProgressionCompass.Content.Tracking;
 
 /// <summary>
 /// A single item the player is tracking toward crafting.
