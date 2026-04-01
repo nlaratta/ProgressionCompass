@@ -63,7 +63,10 @@ public class TrackingPlayer : ModPlayer
 		Tracking.Refresh(recipeIndex, sourceSystem, inventory, ChestsEnabled);
 	}
 
-	/// <summary>Quick hash of just the tracked item counts in inventory.</summary>
+	/// <summary>
+	/// Quick hash of tracked item counts in inventory + nearby chest proximity.
+	/// Includes a coarse player position so moving near/away from chests triggers refresh.
+	/// </summary>
 	private int ComputeTrackedItemsHash()
 	{
 		unchecked
@@ -83,6 +86,15 @@ public class TrackingPlayer : ModPlayer
 				hash = hash * 31 + goal.ItemType;
 				hash = hash * 31 + count;
 			}
+
+			// Include coarse player position (tile granularity, quantized to 8-tile blocks)
+			// so moving near/away from chests triggers a rescan
+			if (ChestsEnabled)
+			{
+				hash = hash * 31 + ((int)player.position.X / 128);
+				hash = hash * 31 + ((int)player.position.Y / 128);
+			}
+
 			return hash;
 		}
 	}
@@ -126,7 +138,11 @@ public class TrackingPlayer : ModPlayer
 
 	public override void OnEnterWorld()
 	{
-		// Resolve tracked goals on world entry
+		// Sync chest toggle from config before first refresh
+		var config = ModContent.GetInstance<global::CraftPathOptimizer.Common.CraftPathConfig>();
+		if (config != null)
+			ChestsEnabled = config.ChestScanDefault;
+
 		if (Tracking.Count > 0)
 			RefreshTracking();
 	}

@@ -206,15 +206,14 @@ public class TrackingOverlayState : UIState
 		int goalCount = Math.Min(tracking.Goals.Count, 5);
 		float totalH = 26f + goalCount * 26f + 6f;
 
-		// Next action section height
-		var nextAction = tracking.NextAction;
-		float nextActionH = 0;
-		if (nextAction != null)
+		// Action sections height (show up to 3 action groups)
+		int maxActions = Math.Min(tracking.ActionPlan.Count, 3);
+		for (int a = 0; a < maxActions; a++)
 		{
-			nextActionH = 24f; // header line
-			int itemsToShow = Math.Min(nextAction.Items.Count, 4);
-			nextActionH += itemsToShow * 20f;
-			totalH += nextActionH + 8f;
+			var action = tracking.ActionPlan[a];
+			totalH += 24f; // header
+			totalH += Math.Min(action.Items.Count, 4) * 18f;
+			totalH += 8f; // spacing
 		}
 
 		// Background
@@ -243,6 +242,13 @@ public class TrackingOverlayState : UIState
 		{
 			var goal = tracking.Goals[i];
 			float pct = goal.ProgressPercent / 100f;
+			bool isReady = pct >= 1f;
+
+			// Ready-to-craft highlight
+			if (isReady)
+				spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+					new Rectangle((int)px + 2, (int)y, (int)PanelW - 4, 22),
+					new Color(30, 70, 30) * 0.5f);
 
 			UIHelper.DrawItemIcon(spriteBatch, goal.ItemType, new Vector2(px + 6f, y + 2f), 16f);
 
@@ -250,31 +256,43 @@ public class TrackingOverlayState : UIState
 			var item = new Item();
 			if (goal.ItemType > ItemID.None) item.SetDefaults(goal.ItemType);
 			string name = item.Name ?? "?";
-			if (name.Length > 16) name = name[..15] + "..";
-			Utils.DrawBorderString(spriteBatch, name, new Vector2(px + 24f, y + 1f), Color.White, 0.58f);
 
-			// Progress bar (inline, right side)
-			float barX = px + PanelW - 70f;
-			float barW = 44f;
-			spriteBatch.Draw(TextureAssets.MagicPixel.Value,
-				new Rectangle((int)barX, (int)(y + 4f), (int)barW, 8), new Color(15, 18, 35));
-			Color barC = pct > 0.8f ? new Color(50, 180, 50) : pct > 0.4f ? new Color(200, 180, 50) : new Color(180, 50, 50);
-			int fillW = (int)(barW * pct);
-			if (fillW > 0)
-				spriteBatch.Draw(TextureAssets.MagicPixel.Value,
-					new Rectangle((int)barX, (int)(y + 4f), fillW, 8), barC);
-
-			// Flash overlay on progress change
-			if (_flashTimers.TryGetValue(goal.ItemType, out int flashTime) && flashTime > 0 && fillW > 0)
+			if (isReady)
 			{
-				float flashAlpha = (float)flashTime / FlashDuration * 0.6f;
-				spriteBatch.Draw(TextureAssets.MagicPixel.Value,
-					new Rectangle((int)barX, (int)(y + 4f), fillW, 8), Color.White * flashAlpha);
+				// Show "READY!" badge instead of progress bar
+				if (name.Length > 12) name = name[..11] + "..";
+				Utils.DrawBorderString(spriteBatch, name, new Vector2(px + 24f, y + 1f), Color.White, 0.58f);
+				Utils.DrawBorderString(spriteBatch, "CRAFT!",
+					new Vector2(px + PanelW - 52f, y + 1f), new Color(80, 255, 80), 0.6f);
 			}
+			else
+			{
+				if (name.Length > 16) name = name[..15] + "..";
+				Utils.DrawBorderString(spriteBatch, name, new Vector2(px + 24f, y + 1f), Color.White, 0.58f);
 
-			// Fraction on bar
-			string frac = $"{goal.OwnedMaterialCount}/{goal.TotalMaterialCount}";
-			Utils.DrawBorderString(spriteBatch, frac, new Vector2(barX + 2f, y + 1f), Color.White, 0.45f);
+				// Progress bar (inline, right side)
+				float barX = px + PanelW - 70f;
+				float barW = 44f;
+				spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+					new Rectangle((int)barX, (int)(y + 4f), (int)barW, 8), new Color(15, 18, 35));
+				Color barC = pct > 0.8f ? new Color(50, 180, 50) : pct > 0.4f ? new Color(200, 180, 50) : new Color(180, 50, 50);
+				int fillW = (int)(barW * pct);
+				if (fillW > 0)
+					spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+						new Rectangle((int)barX, (int)(y + 4f), fillW, 8), barC);
+
+				// Flash overlay on progress change
+				if (_flashTimers.TryGetValue(goal.ItemType, out int flashTime) && flashTime > 0 && fillW > 0)
+				{
+					float flashAlpha = (float)flashTime / FlashDuration * 0.6f;
+					spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+						new Rectangle((int)barX, (int)(y + 4f), fillW, 8), Color.White * flashAlpha);
+				}
+
+				// Fraction on bar
+				string frac = $"{goal.OwnedMaterialCount}/{goal.TotalMaterialCount}";
+				Utils.DrawBorderString(spriteBatch, frac, new Vector2(barX + 2f, y + 1f), Color.White, 0.45f);
+			}
 
 			if (Main.mouseX >= px && Main.mouseX < px + PanelW && Main.mouseY >= y && Main.mouseY < y + 24f)
 				UIHelper.ShowItemTooltip(goal.ItemType);
@@ -282,58 +300,62 @@ public class TrackingOverlayState : UIState
 			y += 24f;
 		}
 
-		// ── Next Action section ──────────────────────────
-		if (nextAction == null)
-			return;
-
-		y += 2f;
-		spriteBatch.Draw(TextureAssets.MagicPixel.Value,
-			new Rectangle((int)px + 4, (int)y, (int)PanelW - 8, 1), new Color(60, 70, 130) * 0.5f);
-		y += 4f;
-
-		Color actionColor = UIHelper.GetActionAccentColor(nextAction.Type);
-
-		// Header line: "CRAFT NOW" or "FARM: Underground Corruption"
-		Utils.DrawBorderString(spriteBatch, nextAction.Heading, new Vector2(px + 6f, y), actionColor, 0.6f);
-		y += 18f;
-
-		// Show each item with details
-		int shown = 0;
-		foreach (var actionItem in nextAction.Items)
+		// ── Action sections (show up to 3 groups) ────────────
+		for (int a = 0; a < maxActions; a++)
 		{
-			if (shown >= 4) break;
+			var action = tracking.ActionPlan[a];
 
-			UIHelper.DrawItemIcon(spriteBatch, actionItem.ItemType, new Vector2(px + 10f, y + 1f), 14f);
+			y += 2f;
+			spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+				new Rectangle((int)px + 4, (int)y, (int)PanelW - 8, 1), new Color(60, 70, 130) * 0.5f);
+			y += 4f;
 
-			// Item name
-			var aItem = new Item();
-			if (actionItem.ItemType > ItemID.None) aItem.SetDefaults(actionItem.ItemType);
-			string aName = aItem.Name ?? "?";
-			if (aName.Length > 13) aName = aName[..12] + "..";
-			Utils.DrawBorderString(spriteBatch, aName, new Vector2(px + 28f, y + 1f), Color.White, 0.55f);
-
-			// Details: drop rate or "need X"
-			string detail = "";
-			if (actionItem.DropRateText != null)
-				detail = actionItem.DropRateText;
-			else if (actionItem.QuantityNeeded > 1)
-				detail = $"x{actionItem.QuantityNeeded}";
-
-			if (!string.IsNullOrEmpty(detail))
-			{
-				float nameW = FontAssets.MouseText.Value.MeasureString(aName).X * 0.55f;
-				Utils.DrawBorderString(spriteBatch, detail, new Vector2(px + 28f + nameW + 4f, y + 2f),
-					Color.Gray, 0.48f);
-			}
-
-			// Owned/needed right-aligned
-			string qty = $"{actionItem.QuantityOwned}/{actionItem.QuantityNeeded}";
-			Color qC = actionItem.QuantityOwned >= actionItem.QuantityNeeded ? Color.Green : new Color(255, 150, 150);
-			float qW = FontAssets.MouseText.Value.MeasureString(qty).X * 0.5f;
-			Utils.DrawBorderString(spriteBatch, qty, new Vector2(px + PanelW - qW - 8f, y + 1f), qC, 0.5f);
-
+			Color actionColor = UIHelper.GetActionAccentColor(action.Type);
+			Utils.DrawBorderString(spriteBatch, action.Heading, new Vector2(px + 6f, y), actionColor, 0.6f);
 			y += 18f;
-			shown++;
+
+			int shown = 0;
+			foreach (var actionItem in action.Items)
+			{
+				if (shown >= 4) break;
+
+				UIHelper.DrawItemIcon(spriteBatch, actionItem.ItemType, new Vector2(px + 10f, y + 1f), 14f);
+
+				var aItem = new Item();
+				if (actionItem.ItemType > ItemID.None) aItem.SetDefaults(actionItem.ItemType);
+				string aName = aItem.Name ?? "?";
+				if (aName.Length > 13) aName = aName[..12] + "..";
+				Utils.DrawBorderString(spriteBatch, aName, new Vector2(px + 28f, y + 1f), Color.White, 0.55f);
+
+				// Equipped warning badge
+				if (actionItem.IsEquipped)
+				{
+					float nW = FontAssets.MouseText.Value.MeasureString(aName).X * 0.55f;
+					Utils.DrawBorderString(spriteBatch, "[E]", new Vector2(px + 28f + nW + 2f, y + 1f),
+						new Color(255, 200, 60), 0.45f);
+				}
+
+				string detail = "";
+				if (actionItem.DropRateText != null)
+					detail = actionItem.DropRateText;
+				else if (actionItem.QuantityNeeded > 1)
+					detail = $"x{actionItem.QuantityNeeded}";
+
+				if (!string.IsNullOrEmpty(detail))
+				{
+					float nameW = FontAssets.MouseText.Value.MeasureString(aName).X * 0.55f;
+					Utils.DrawBorderString(spriteBatch, detail, new Vector2(px + 28f + nameW + 4f, y + 2f),
+						Color.Gray, 0.48f);
+				}
+
+				string qty = $"{actionItem.QuantityOwned}/{actionItem.QuantityNeeded}";
+				Color qC = actionItem.QuantityOwned >= actionItem.QuantityNeeded ? Color.Green : new Color(255, 150, 150);
+				float qW = FontAssets.MouseText.Value.MeasureString(qty).X * 0.5f;
+				Utils.DrawBorderString(spriteBatch, qty, new Vector2(px + PanelW - qW - 8f, y + 1f), qC, 0.5f);
+
+				y += 18f;
+				shown++;
+			}
 		}
 	}
 }

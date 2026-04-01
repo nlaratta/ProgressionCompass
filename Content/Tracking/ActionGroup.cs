@@ -62,4 +62,10 @@ public class ActionItem
 
 	/// <summary>All known sources for this item (for multi-source display).</summary>
 	public List<ItemSource> AllSources { get; init; }
+
+	/// <summary>True if the player has this item equipped (armor/accessory). Warns about needing to unequip.</summary>
+	public bool IsEquipped { get; init; }
+
+	/// <summary>When multiple goals need this material, shows which goals. Null if only 1 goal.</summary>
+	public string GoalAttribution { get; init; }
 }

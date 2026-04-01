@@ -41,16 +41,22 @@ public static class ActionClassifier
 				if (allMissing.TryGetValue(mat.ItemType, out var existing))
 				{
 					existing.TotalNeeded += deficit;
+					if (!existing.ForGoals.Contains(goal.ItemType))
+						existing.ForGoals.Add(goal.ItemType);
 				}
 				else
 				{
+					bool equipped = inventory.TryGetValue(mat.ItemType, out var invEntry)
+						&& invEntry.IsEquipped;
 					allMissing[mat.ItemType] = new MissingItem
 					{
 						ItemType = mat.ItemType,
 						TotalNeeded = deficit,
 						Owned = mat.Owned.AvailableCount(includeChests),
 						Sources = mat.Sources,
-						IsCraftable = mat.IsCraftable
+						IsCraftable = mat.IsCraftable,
+						IsEquipped = equipped,
+						ForGoals = [goal.ItemType]
 					};
 				}
 			}
@@ -82,7 +88,9 @@ public static class ActionClassifier
 					QuantityOwned = missing.Owned,
 					HowToGet = $"Craft at {stationName ?? "crafting station"}",
 					Source = null,
-					Ingredients = ingredients
+					Ingredients = ingredients,
+					IsEquipped = missing.IsEquipped,
+					GoalAttribution = FormatGoalAttribution(missing.ForGoals)
 				});
 				continue;
 			}
@@ -190,11 +198,12 @@ public static class ActionClassifier
 
 		foreach (var (eventName, items) in eventItems)
 		{
+			string triggerHint = GetEventTriggerHint(eventName);
 			result.Add(new ActionGroup
 			{
 				Type = ActionType.Event,
 				Heading = $"Event: {eventName}",
-				Description = $"{items.Count} item(s) from this event",
+				Description = triggerHint ?? $"{items.Count} item(s) from this event",
 				Items = items,
 				SubPriority = 0
 			});
@@ -261,7 +270,9 @@ public static class ActionClassifier
 			DropRateText = dropRate,
 			SourceEntityId = source.SourceEntityId,
 			Source = source,
-			AllSources = missing.Sources
+			AllSources = missing.Sources,
+			IsEquipped = missing.IsEquipped,
+			GoalAttribution = FormatGoalAttribution(missing.ForGoals)
 		};
 	}
 
@@ -273,8 +284,24 @@ public static class ActionClassifier
 			QuantityNeeded = missing.TotalNeeded,
 			QuantityOwned = missing.Owned,
 			HowToGet = description,
-			AllSources = missing.Sources
+			AllSources = missing.Sources,
+			IsEquipped = missing.IsEquipped,
+			GoalAttribution = FormatGoalAttribution(missing.ForGoals)
 		};
+	}
+
+	private static string FormatGoalAttribution(List<int> forGoals)
+	{
+		if (forGoals == null || forGoals.Count <= 1)
+			return null;
+		var names = new List<string>();
+		foreach (int goalType in forGoals)
+		{
+			string name = Lang.GetItemNameValue(goalType);
+			if (!string.IsNullOrEmpty(name))
+				names.Add(name);
+		}
+		return names.Count > 1 ? $"For: {string.Join(", ", names)}" : null;
 	}
 
 	private static ItemSource PickBestSource(List<ItemSource> sources) =>
@@ -452,6 +479,23 @@ public static class ActionClassifier
 		};
 	}
 
+	private static string GetEventTriggerHint(string eventDescription)
+	{
+		if (string.IsNullOrEmpty(eventDescription)) return null;
+		string lower = eventDescription.ToLowerInvariant();
+
+		if (lower.Contains("goblin")) return "Use Goblin Battle Standard, or random at 65% HP";
+		if (lower.Contains("pirate")) return "Use Pirate Map, or random in Hardmode Ocean";
+		if (lower.Contains("solar eclipse")) return "Use Solar Tablet, or random post-Mech Hardmode";
+		if (lower.Contains("blood moon")) return "Random event at night (1/9 chance)";
+		if (lower.Contains("frost moon")) return "Use Naughty Present at night";
+		if (lower.Contains("pumpkin moon")) return "Use Pumpkin Moon Medallion at night";
+		if (lower.Contains("martian")) return "Lure Martian Probe in Space layer";
+		if (lower.Contains("frost legion")) return "Use Snow Globe";
+		if (lower.Contains("old one")) return "Use Eternia Crystal at Eternia Crystal Stand";
+		return null;
+	}
+
 	private class MissingItem
 	{
 		public int ItemType;
@@ -459,5 +503,7 @@ public static class ActionClassifier
 		public int Owned;
 		public List<ItemSource> Sources;
 		public bool IsCraftable;
+		public bool IsEquipped;
+		public List<int> ForGoals = [];
 	}
 }
