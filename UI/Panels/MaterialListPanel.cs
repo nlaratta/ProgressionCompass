@@ -54,10 +54,12 @@ public class MaterialListPanel : UIElement
 			return;
 		}
 
-		// For non-craftable items (no materials), show item info + Used In
+		// For non-craftable items (no materials), show item info + sources
 		if (result.Materials == null || result.Materials.Count == 0)
 		{
 			AddItemInfoSection(result);
+			AddAlsoObtainableSection(result.Tree.ItemType);
+			AddShimmersIntoSection(result.Tree.ItemType);
 			AddUsedInSection(result);
 			return;
 		}
@@ -103,6 +105,10 @@ public class MaterialListPanel : UIElement
 			}
 		}
 
+		// Non-recipe sources for the target item (drops, shops, shimmer, etc.)
+		AddAlsoObtainableSection(result.Tree.ItemType);
+		AddShimmersIntoSection(result.Tree.ItemType);
+
 		// "Used In" section: what recipes use this item as an ingredient?
 		AddUsedInSection(result);
 	}
@@ -140,6 +146,49 @@ public class MaterialListPanel : UIElement
 		{
 			_list.Add(new UIEmptyMessage("No known sources for this item."));
 		}
+	}
+
+	/// <summary>Shows non-recipe sources for the item (drops, shops, shimmer, fishing, chests).</summary>
+	private void AddAlsoObtainableSection(int itemType)
+	{
+		if (itemType <= Terraria.ID.ItemID.None) return;
+
+		var sourceSystem = Terraria.ModLoader.ModContent.GetInstance<global::CraftPathOptimizer.Common.Systems.ItemSourceSystem>();
+		var sources = sourceSystem?.GetSources(itemType);
+		if (sources == null || sources.Count == 0) return;
+
+		_list.Add(new UISectionHeader($"Also Obtainable ({sources.Count})"));
+		int shown = 0;
+		foreach (var src in sources)
+		{
+			if (shown >= 8) break;
+			_list.Add(new UISourceRow(src));
+			shown++;
+		}
+		if (sources.Count > 8)
+			_list.Add(new UIEmptyMessage($"+{sources.Count - 8} more sources..."));
+	}
+
+	/// <summary>Shows what this item transforms into when dropped in shimmer.</summary>
+	private void AddShimmersIntoSection(int itemType)
+	{
+		if (itemType <= Terraria.ID.ItemID.None) return;
+
+		try
+		{
+			var shimmerMap = Terraria.ID.ItemID.Sets.ShimmerTransformToItem;
+			if (shimmerMap == null || itemType >= shimmerMap.Length) return;
+
+			int resultType = shimmerMap[itemType];
+			if (resultType <= Terraria.ID.ItemID.None) return;
+
+			_list.Add(new UISectionHeader("Shimmers Into"));
+
+			var row = new UIUsedInRow(resultType);
+			row.OnClicked += type => OnAnalyzeItem?.Invoke(type);
+			_list.Add(row);
+		}
+		catch { }
 	}
 
 	private void AddUsedInSection(ResolverResult result)
