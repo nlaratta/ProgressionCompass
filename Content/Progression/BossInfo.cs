@@ -17,6 +17,10 @@ public class BossInfo
 	public Tier RequiredTier { get; init; }
 	public bool IsOptional { get; init; }
 	public List<int> KeyDropItemTypes { get; init; } = [];
+	/// <summary>Items used to summon this boss (from Boss Checklist spawnItems).</summary>
+	public List<int> SummonItemIds { get; init; } = [];
+	/// <summary>Treasure bag item type (Expert+). -1 if none.</summary>
+	public int TreasureBagItemType { get; init; } = -1;
 	/// <summary>Progression value from Boss Checklist (if available). Lower = earlier.</summary>
 	public float ProgressionOrder { get; init; }
 }

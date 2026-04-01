@@ -16,6 +16,11 @@ public static class BossDatabase
 	/// <summary>True if Boss Checklist mod is providing the data.</summary>
 	public static bool UsingBossChecklist { get; private set; }
 
+	private static Dictionary<int, BossInfo> _bossByNpcType;
+
+	/// <summary>Looks up boss info by NPC type. Populated after GetNextBosses runs.</summary>
+	public static BossInfo GetByNpcType(int npcType) => _bossByNpcType?.GetValueOrDefault(npcType);
+
 	/// <summary>
 	/// Returns the next undefeated bosses the player should fight,
 	/// sorted by progression order.
@@ -49,6 +54,11 @@ public static class BossDatabase
 			allBosses = GetVanillaBosses();
 			AddModdedBosses(allBosses, sourceSystem);
 		}
+
+		// Cache all bosses for lookup by NPC type
+		_bossByNpcType = [];
+		foreach (var boss in allBosses)
+			_bossByNpcType.TryAdd(boss.NpcType, boss);
 
 		// Filter to undefeated bosses near current tier
 		var next = new List<BossInfo>();
@@ -122,6 +132,16 @@ public static class BossDatabase
 							keyDrops.Add(loot[i]);
 					}
 
+					// Summon items
+					var summonItems = new List<int>();
+					if (info.TryGetValue("spawnItems", out var spawnItemsObj) && spawnItemsObj is List<int> spawnIds)
+						summonItems.AddRange(spawnIds);
+
+					// Treasure bag
+					int treasureBag = -1;
+					if (info.TryGetValue("treasureBag", out var bagObj) && bagObj is int bagId && bagId > 0)
+						treasureBag = bagId;
+
 					results.Add(new BossInfo
 					{
 						NpcType = npcType,
@@ -133,10 +153,15 @@ public static class BossDatabase
 						RequiredTier = tier,
 						IsOptional = IsOptionalBoss(npcType),
 						ProgressionOrder = progression,
-						KeyDropItemTypes = keyDrops
+						KeyDropItemTypes = keyDrops,
+						SummonItemIds = summonItems,
+						TreasureBagItemType = treasureBag
 					});
 				}
-				catch { }
+				catch (Exception ex)
+				{
+					global::CraftPathOptimizer.Common.Log.Warn($"Failed to parse boss entry: {ex.Message}");
+				}
 			}
 
 			results.Sort((a, b) => a.ProgressionOrder.CompareTo(b.ProgressionOrder));

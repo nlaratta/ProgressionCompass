@@ -119,8 +119,9 @@ public static class CombinationScanner
 			{
 				result = resolver.Resolve(outputType, 1, inv, includeChests);
 			}
-			catch
+			catch (Exception ex)
 			{
+				global::CraftPathOptimizer.Common.Log.Warn($"Combination resolve failed for item {outputType}: {ex.Message}");
 				continue;
 			}
 
@@ -226,7 +227,10 @@ public static class CombinationScanner
 				FindReadySubCombinations(r.ItemType, recipeIndex, inventory, includeChests,
 					resolver, combinationTypes, ownedItemTypes, milestones);
 			}
-			catch { }
+			catch (Exception ex)
+			{
+				global::CraftPathOptimizer.Common.Log.Warn($"Sub-combination scan failed for {r.ItemType}: {ex.Message}");
+			}
 
 			milestones.Sort((a, b) => b.CompletionPercent.CompareTo(a.CompletionPercent));
 			r.ReadyMilestones = milestones;

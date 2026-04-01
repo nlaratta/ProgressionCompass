@@ -410,7 +410,7 @@ public class CraftPathState : UIState
 			}
 			catch (Exception ex)
 			{
-				global::CraftPathOptimizer.CraftPathOptimizer.Instance?.Logger?.Warn($"Resolver error: {ex.Message}");
+				global::CraftPathOptimizer.Common.Log.Warn($"Resolver error: {ex.Message}");
 			}
 			finally { _resolving = false; }
 		});
@@ -471,7 +471,7 @@ public class CraftPathState : UIState
 			}
 			catch (Exception ex)
 			{
-				global::CraftPathOptimizer.CraftPathOptimizer.Instance?.Logger?.Warn($"Progress scan error: {ex.Message}");
+				global::CraftPathOptimizer.Common.Log.Warn($"Progress scan error: {ex.Message}");
 			}
 			finally { _scanningProgress = false; }
 		});
