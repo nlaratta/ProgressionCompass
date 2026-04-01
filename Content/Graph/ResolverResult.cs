@@ -68,7 +68,8 @@ public record CraftStepInput(
 	int Quantity,
 	CraftStepInputSource Source,
 	int? FromStepNumber,
-	string AcquireHint = null);
+	string AcquireHint = null,
+	List<ItemSource> AcquireSources = null);
 
 public enum CraftStepInputSource
 {

@@ -85,13 +85,25 @@ public class ItemSourceSystem : ModSystem
 		if (Main.dedServ)
 			return;
 
+		// Index drops and gathering sources — these are available now.
+		// Shop indexing is deferred to PostAddRecipes because NPCShopDatabase
+		// isn't populated until after AddShops() runs (which is after PostSetupContent).
 		_sourcesByItem = [];
 		IndexNPCDrops();
-		IndexNPCShops();
 		IndexItemDrops();
 		IndexGatheringSources();
 
-		Mod.Logger.Info($"Indexed item sources for {_sourcesByItem.Count} items");
+		Mod.Logger.Info($"Indexed item sources (drops/gathering) for {_sourcesByItem.Count} items");
+	}
+
+	public override void PostAddRecipes()
+	{
+		if (Main.dedServ || _sourcesByItem == null)
+			return;
+
+		int before = _sourcesByItem.Count;
+		IndexNPCShops();
+		Mod.Logger.Info($"Indexed NPC shop sources: {_sourcesByItem.Count - before} new items (total: {_sourcesByItem.Count})");
 	}
 
 	public override void Unload()
@@ -203,12 +215,75 @@ public class ItemSourceSystem : ModSystem
 				if (entry.Item.type <= ItemID.None)
 					continue;
 
+				// Extract price
+				string priceText = "";
+				try
+				{
+					int price = (entry.Item.shopCustomPrice.HasValue && entry.Item.shopCustomPrice.Value > 0)
+						? entry.Item.shopCustomPrice.Value
+						: entry.Item.value / 5;
+					if (entry.Item.shopSpecialCurrency >= 0)
+						priceText = ""; // Special currency — skip coin display
+					else if (price > 0)
+						priceText = $" ~{FormatCoins(price)}";
+				}
+				catch { }
+
+				// Extract conditions (night only, post-boss, etc.)
+				string condText = "";
+				try
+				{
+					var condTexts = new List<string>();
+					foreach (var cond in entry.Conditions)
+					{
+						string desc = cond?.Description?.Value;
+						if (!string.IsNullOrEmpty(desc))
+							condTexts.Add(desc);
+					}
+					if (condTexts.Count > 0)
+						condText = $" ({string.Join(", ", condTexts)})";
+					if (condText.Length > 50)
+						condText = condText[..49] + "..)";
+				}
+				catch { }
+
 				AddSource(entry.Item.type, new ItemSource(
 					ItemSourceType.NPCShop,
-					$"Buy: {shopOwner}",
+					$"Buy: {shopOwner}{priceText}{condText}",
 					npcShop.NpcType));
 			}
 		}
+	}
+
+	private static string FormatCoins(int copper)
+	{
+		if (copper <= 0) return "";
+		int platinum = copper / 1000000;
+		copper %= 1000000;
+		int gold = copper / 10000;
+		copper %= 10000;
+		int silver = copper / 100;
+		copper %= 100;
+
+		if (platinum > 0) return gold > 0 ? $"{platinum}p {gold}g" : $"{platinum}p";
+		if (gold > 0) return silver > 0 ? $"{gold}g {silver}s" : $"{gold}g";
+		if (silver > 0) return $"{silver}s";
+		return $"{copper}c";
+	}
+
+	private static string InferCrateBiome(string crateName)
+	{
+		string lower = (crateName ?? "").ToLowerInvariant();
+		if (lower.Contains("jungle")) return "Jungle";
+		if (lower.Contains("frozen") || lower.Contains("boreal")) return "Snow biome";
+		if (lower.Contains("ocean") || lower.Contains("seaside")) return "Ocean";
+		if (lower.Contains("sky") || lower.Contains("azure")) return "Sky islands";
+		if (lower.Contains("corrupt")) return "Corruption";
+		if (lower.Contains("crimson") || lower.Contains("hematic")) return "Crimson";
+		if (lower.Contains("hallow") || lower.Contains("divine")) return "Hallow";
+		if (lower.Contains("oasis") || lower.Contains("desert") || lower.Contains("mirage")) return "Desert";
+		if (lower.Contains("obsidian") || lower.Contains("hellstone")) return "Underworld";
+		return null;
 	}
 
 	/// <summary>
@@ -244,8 +319,14 @@ public class ItemSourceSystem : ModSystem
 			string sourceType = isBossBag ? "Open" : isCrate ? "Fish" : "Open";
 			var srcType = isBossBag ? ItemSourceType.BagDrop : isCrate ? ItemSourceType.Fishing : ItemSourceType.Other;
 
+			// Add biome hint for fishing crates
+			string biomeHint = isCrate ? InferCrateBiome(sourceName) : null;
+			string desc = biomeHint != null
+				? $"{sourceType}: {sourceName} ({biomeHint})"
+				: $"{sourceType}: {sourceName}";
+
 			foreach (var rule in rules)
-				ExtractDropsFromItemRule(rule, itemType, $"{sourceType}: {sourceName}", srcType);
+				ExtractDropsFromItemRule(rule, itemType, desc, srcType);
 		}
 	}
 

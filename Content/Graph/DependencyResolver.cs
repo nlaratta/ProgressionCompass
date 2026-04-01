@@ -14,7 +14,7 @@ namespace CraftPathOptimizer.Content.Graph;
 /// </summary>
 public class DependencyResolver
 {
-	private const int MaxDepth = 20;
+	private const int MaxDepth = 25;
 	private const int MaxRecipesPerItem = 15;
 
 	private readonly RecipeIndexSystem _recipeIndex;
@@ -367,6 +367,7 @@ public class DependencyResolver
 			int? fromStep = null;
 
 			string acquireHint = null;
+			List<ItemSource> acquireSources = null;
 
 			// Determine source: check tree node type first, then fall back to inventory
 			if (child is HaveNode)
@@ -392,14 +393,20 @@ public class DependencyResolver
 				{
 					source = CraftStepInputSource.NeedToAcquire;
 					if (groupChild.ChosenItem is AcquireNode gAcq && gAcq.Sources.Count > 0)
-						acquireHint = gAcq.Sources[0].Description;
+					{
+						acquireSources = gAcq.Sources;
+						acquireHint = ItemSource.PickBest(gAcq.Sources)?.Description;
+					}
 				}
 			}
 			else
 			{
 				source = CraftStepInputSource.NeedToAcquire;
 				if (child is AcquireNode acq && acq.Sources.Count > 0)
-					acquireHint = acq.Sources[0].Description;
+				{
+					acquireSources = acq.Sources;
+					acquireHint = ItemSource.PickBest(acq.Sources)?.Description;
+				}
 			}
 
 			// Override: if the tree says "need to acquire" but we actually OWN enough
@@ -411,9 +418,10 @@ public class DependencyResolver
 			{
 				source = CraftStepInputSource.Owned;
 				acquireHint = null;
+				acquireSources = null;
 			}
 
-			inputs.Add(new CraftStepInput(childType, childQty, source, fromStep, acquireHint));
+			inputs.Add(new CraftStepInput(childType, childQty, source, fromStep, acquireHint, acquireSources));
 		}
 
 		var requiredTiles = craft.Recipe.requiredTile
