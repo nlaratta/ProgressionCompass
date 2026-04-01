@@ -120,6 +120,7 @@ public static class UIHelper
 		ItemSourceType.NPCShop => new Color(110, 255, 110),
 		ItemSourceType.Fishing => new Color(110, 185, 255),
 		ItemSourceType.Event => new Color(200, 110, 255),
+		ItemSourceType.Shimmer => new Color(160, 120, 255),
 		ItemSourceType.Gathering => new Color(180, 220, 130),
 		ItemSourceType.ChestLoot => new Color(255, 220, 110),
 		ItemSourceType.BagDrop => new Color(255, 160, 200),

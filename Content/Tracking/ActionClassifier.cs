@@ -124,7 +124,8 @@ public static class ActionClassifier
 					break;
 
 				case ItemSourceType.Event:
-					string eventKey = bestSource.Description;
+					string eventKey = global::CraftPathOptimizer.Common.Systems.ItemSourceSystem.GetNPCEventName(bestSource.SourceEntityId)
+						?? bestSource.Description;
 					if (!eventItems.ContainsKey(eventKey))
 						eventItems[eventKey] = [];
 					eventItems[eventKey].Add(MakeActionItem(missing, bestSource));
@@ -140,6 +141,7 @@ public static class ActionClassifier
 
 				case ItemSourceType.ChestLoot:
 				case ItemSourceType.Gathering:
+				case ItemSourceType.Shimmer:
 					exploreItems.Add(MakeActionItem(missing, bestSource));
 					break;
 
@@ -385,30 +387,64 @@ public static class ActionClassifier
 		return null;
 	}
 
-	/// <summary>
-	/// Rough biome classification for an NPC based on its type.
-	/// This is a simplified heuristic — a full implementation would check
-	/// NPC spawn conditions, but that data isn't easily accessible.
-	/// </summary>
 	private static string GetNPCLocation(int npcId)
+	{
+		string bestiary = GetNPCLocationFromBestiary(npcId);
+		if (bestiary != null) return bestiary;
+		return GetNPCLocationHeuristic(npcId);
+	}
+
+	private static string GetNPCLocationFromBestiary(int npcId)
+	{
+		if (npcId <= 0) return null;
+		try
+		{
+			var entry = Main.BestiaryDB?.FindEntryByNPCID(npcId);
+			if (entry?.Info == null) return null;
+
+			var biomes = new List<string>();
+			foreach (var element in entry.Info)
+			{
+				if (element is Terraria.GameContent.Bestiary.SpawnConditionBestiaryInfoElement spawnCond)
+				{
+					// Try localized name first, fall back to key parsing
+					string name = null;
+					try
+					{
+						string key = spawnCond.GetDisplayNameKey();
+						if (!string.IsNullOrEmpty(key))
+							name = Terraria.Localization.Language.GetTextValue(key);
+					}
+					catch { }
+
+					if (!string.IsNullOrEmpty(name) && name != "Unknown")
+					{
+						biomes.Add(name);
+						if (biomes.Count >= 2) break;
+					}
+				}
+			}
+
+			return biomes.Count > 0 ? string.Join(" / ", biomes) : null;
+		}
+		catch { return null; }
+	}
+
+	private static string GetNPCLocationHeuristic(int npcId)
 	{
 		if (npcId <= 0)
 			return "Surface";
 
-		// Use NPC bestiary info or known spawn conditions
-		// For now, use a heuristic based on NPC name patterns and known IDs
 		try
 		{
 			var npc = new NPC();
 			npc.SetDefaults(npcId);
 
-			// Check basic spawn info from NPC stats
 			if (npc.boss)
 				return "Boss Fight";
 
 			string name = npc.FullName ?? npc.GivenOrTypeName ?? "";
 
-			// Known biome mob patterns (covers most vanilla + common modded)
 			if (ContainsAny(name, "Corrupt", "Eater", "Devourer", "Clinger"))
 				return "Underground Corruption";
 			if (ContainsAny(name, "Crimson", "Creeper", "Ichor", "Floaty"))
@@ -432,7 +468,6 @@ public static class ActionClassifier
 			if (ContainsAny(name, "Lava", "Hell", "Demon", "Bone Serpent", "Fire Imp"))
 				return "Underworld";
 
-			// Fallback: classify by defense/life as rough depth indicator
 			if (npc.defense > 30 || npc.lifeMax > 400)
 				return "Underground / Cavern";
 
@@ -454,7 +489,28 @@ public static class ActionClassifier
 
 	private static string GetBossSummonHint(int npcId)
 	{
-		// Known boss summoning info for common bosses
+		// Try Boss Checklist data first (covers modded bosses)
+		var boss = Content.Progression.BossDatabase.GetByNpcType(npcId);
+		if (boss != null)
+		{
+			// Prefer Boss Checklist's own spawnInfo hint if detailed
+			if (!string.IsNullOrEmpty(boss.SummonHint) && boss.SummonHint != "Check wiki for summoning")
+				return boss.SummonHint;
+
+			// Generate from spawnItems if available
+			if (boss.SummonItemIds.Count > 0)
+			{
+				var names = boss.SummonItemIds
+					.Select(id => Lang.GetItemNameValue(id))
+					.Where(n => !string.IsNullOrEmpty(n))
+					.Take(2);
+				string joined = string.Join(" or ", names);
+				if (!string.IsNullOrEmpty(joined))
+					return $"Use {joined}";
+			}
+		}
+
+		// Hardcoded fallback for vanilla bosses
 		return npcId switch
 		{
 			NPCID.EyeofCthulhu => "Use Suspicious Looking Eye at night",

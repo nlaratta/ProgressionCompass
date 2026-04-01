@@ -92,8 +92,9 @@ public class ItemSourceSystem : ModSystem
 		IndexNPCDrops();
 		IndexItemDrops();
 		IndexGatheringSources();
+		IndexShimmerTransforms();
 
-		Mod.Logger.Info($"Indexed item sources (drops/gathering) for {_sourcesByItem.Count} items");
+		Mod.Logger.Info($"Indexed item sources (drops/gathering/shimmer) for {_sourcesByItem.Count} items");
 	}
 
 	public override void PostAddRecipes()
@@ -137,19 +138,31 @@ public class ItemSourceSystem : ModSystem
 			try { npcName = Lang.GetNPCNameValue(npcId); }
 			catch { npcName = $"NPC#{npcId}"; }
 
+			string eventName = GetNPCEventName(npcId);
+
 			foreach (var rule in rules)
-				ExtractDropsFromRule(rule, npcId, npcName, isBoss);
+				ExtractDropsFromRule(rule, npcId, npcName, isBoss, eventName);
 		}
 	}
 
-	private void ExtractDropsFromRule(IItemDropRule rule, int npcId, string npcName, bool isBoss)
+	private void ExtractDropsFromRule(IItemDropRule rule, int npcId, string npcName,
+		bool isBoss, string eventName = null, string difficultyTag = null)
 	{
+		// Determine source type: event > boss > regular NPC
+		ItemSourceType GetSourceType() =>
+			eventName != null ? ItemSourceType.Event
+			: isBoss ? ItemSourceType.BossDrop
+			: ItemSourceType.NPCDrop;
+
+		string eventTag = eventName != null ? $" ({eventName})" : "";
+		string diffTag = difficultyTag ?? "";
+
 		switch (rule)
 		{
 			case CommonDrop common:
 				AddSource(common.itemId, new ItemSource(
-					isBoss ? ItemSourceType.BossDrop : ItemSourceType.NPCDrop,
-					$"Drop: {npcName}" + (common.chanceDenominator > 1 ? $" (1/{common.chanceDenominator})" : ""),
+					GetSourceType(),
+					$"Drop: {npcName}{eventTag}{diffTag}" + (common.chanceDenominator > 1 ? $" (1/{common.chanceDenominator})" : ""),
 					npcId,
 					1f / common.chanceDenominator));
 				break;
@@ -157,48 +170,64 @@ public class ItemSourceSystem : ModSystem
 			case OneFromOptionsNotScaledWithLuckDropRule oneFromOptions:
 				foreach (int itemId in oneFromOptions.dropIds)
 					AddSource(itemId, new ItemSource(
-						isBoss ? ItemSourceType.BossDrop : ItemSourceType.NPCDrop,
-						$"Drop: {npcName}",
+						GetSourceType(),
+						$"Drop: {npcName}{eventTag}{diffTag}",
 						npcId));
 				break;
 
 			case OneFromOptionsDropRule oneFromOptions:
 				foreach (int itemId in oneFromOptions.dropIds)
 					AddSource(itemId, new ItemSource(
-						isBoss ? ItemSourceType.BossDrop : ItemSourceType.NPCDrop,
-						$"Drop: {npcName}",
+						GetSourceType(),
+						$"Drop: {npcName}{eventTag}{diffTag}",
 						npcId));
 				break;
 
 			case DropBasedOnExpertMode expertDrop:
-				ExtractDropsFromRule(expertDrop.ruleForNormalMode, npcId, npcName, isBoss);
-				ExtractDropsFromRule(expertDrop.ruleForExpertMode, npcId, npcName, isBoss);
+				ExtractDropsFromRule(expertDrop.ruleForNormalMode, npcId, npcName, isBoss, eventName, difficultyTag);
+				ExtractDropsFromRule(expertDrop.ruleForExpertMode, npcId, npcName, isBoss, eventName, " [Expert+]");
 				break;
 
 			case DropBasedOnMasterMode masterDrop:
-				ExtractDropsFromRule(masterDrop.ruleForDefault, npcId, npcName, isBoss);
-				ExtractDropsFromRule(masterDrop.ruleForMasterMode, npcId, npcName, isBoss);
+				ExtractDropsFromRule(masterDrop.ruleForDefault, npcId, npcName, isBoss, eventName, difficultyTag);
+				ExtractDropsFromRule(masterDrop.ruleForMasterMode, npcId, npcName, isBoss, eventName, " [Master]");
 				break;
 
 			case LeadingConditionRule condRule:
 				foreach (var chained in condRule.ChainedRules)
-					ExtractDropsFromRule(chained.RuleToChain, npcId, npcName, isBoss);
+					ExtractDropsFromRule(chained.RuleToChain, npcId, npcName, isBoss, eventName, difficultyTag);
 				break;
 
 			default:
-				// Reflection fallback: try to find itemId-like fields on unknown rule types.
-				// This catches modded drop rules that follow the convention of having an
-				// 'itemId' or 'itemType' field but use a custom IItemDropRule implementation.
-				TryExtractViaReflection(rule, npcId, npcName, isBoss);
+				TryExtractViaReflection(rule, npcId, npcName, isBoss, eventName, difficultyTag);
 				break;
 		}
 
-		// Traverse chained rules on any rule type
 		if (rule.ChainedRules != null)
 		{
 			foreach (var chained in rule.ChainedRules)
-				ExtractDropsFromRule(chained.RuleToChain, npcId, npcName, isBoss);
+				ExtractDropsFromRule(chained.RuleToChain, npcId, npcName, isBoss, eventName, difficultyTag);
 		}
+	}
+
+	internal static string GetNPCEventName(int npcId)
+	{
+		if (npcId < 0) return null;
+		try
+		{
+			if (npcId < NPCID.Sets.BelongsToInvasionGoblinArmy.Length && NPCID.Sets.BelongsToInvasionGoblinArmy[npcId])
+				return "Goblin Army";
+			if (npcId < NPCID.Sets.BelongsToInvasionFrostLegion.Length && NPCID.Sets.BelongsToInvasionFrostLegion[npcId])
+				return "Frost Legion";
+			if (npcId < NPCID.Sets.BelongsToInvasionPirate.Length && NPCID.Sets.BelongsToInvasionPirate[npcId])
+				return "Pirate Invasion";
+			if (npcId < NPCID.Sets.BelongsToInvasionMartianMadness.Length && NPCID.Sets.BelongsToInvasionMartianMadness[npcId])
+				return "Martian Madness";
+			if (npcId < NPCID.Sets.BelongsToInvasionOldOnesArmy.Length && NPCID.Sets.BelongsToInvasionOldOnesArmy[npcId])
+				return "Old One's Army";
+		}
+		catch { }
+		return null;
 	}
 
 	private void IndexNPCShops()
@@ -466,6 +495,27 @@ public class ItemSourceSystem : ModSystem
 		AddSource(itemType, new ItemSource(ItemSourceType.Gathering, description));
 	}
 
+	private void IndexShimmerTransforms()
+	{
+		var shimmerMap = ItemID.Sets.ShimmerTransformToItem;
+		if (shimmerMap == null) return;
+
+		for (int sourceItem = 0; sourceItem < shimmerMap.Length; sourceItem++)
+		{
+			int resultItem = shimmerMap[sourceItem];
+			if (resultItem <= ItemID.None) continue;
+
+			string sourceName;
+			try { sourceName = Lang.GetItemNameValue(sourceItem); }
+			catch { sourceName = $"Item#{sourceItem}"; }
+
+			AddSource(resultItem, new ItemSource(
+				ItemSourceType.Shimmer,
+				$"Shimmer: {sourceName}",
+				sourceItem));
+		}
+	}
+
 	/// <summary>Extracts NPC name from a source description like "Drop: Hornet (1/3)" → "Hornet"</summary>
 	private static string ExtractNPCName(string description)
 	{
@@ -486,8 +536,16 @@ public class ItemSourceSystem : ModSystem
 	/// Looks for fields named 'itemId', 'itemType', or 'dropId' and extracts
 	/// integer values that look like item IDs.
 	/// </summary>
-	private void TryExtractViaReflection(IItemDropRule rule, int npcId, string npcName, bool isBoss)
+	private void TryExtractViaReflection(IItemDropRule rule, int npcId, string npcName,
+		bool isBoss, string eventName = null, string difficultyTag = null)
 	{
+		ItemSourceType GetSourceType() =>
+			eventName != null ? ItemSourceType.Event
+			: isBoss ? ItemSourceType.BossDrop
+			: ItemSourceType.NPCDrop;
+		string eventTag = eventName != null ? $" ({eventName})" : "";
+		string diffTag = difficultyTag ?? "";
+
 		try
 		{
 			var type = rule.GetType();
@@ -502,15 +560,14 @@ public class ItemSourceSystem : ModSystem
 					if (itemId > ItemID.None)
 					{
 						AddSource(itemId, new ItemSource(
-							isBoss ? ItemSourceType.BossDrop : ItemSourceType.NPCDrop,
-							$"Drop: {npcName}",
+							GetSourceType(),
+							$"Drop: {npcName}{eventTag}{diffTag}",
 							npcId));
 					}
 					return;
 				}
 			}
 
-			// Also check for dropIds array (int[])
 			foreach (string fieldName in (string[])["dropIds", "DropIds", "itemIds"])
 			{
 				var field = type.GetField(fieldName, BindingFlags.Public | BindingFlags.Instance);
@@ -523,8 +580,8 @@ public class ItemSourceSystem : ModSystem
 						{
 							if (itemId > ItemID.None)
 								AddSource(itemId, new ItemSource(
-									isBoss ? ItemSourceType.BossDrop : ItemSourceType.NPCDrop,
-									$"Drop: {npcName}",
+									GetSourceType(),
+									$"Drop: {npcName}{eventTag}{diffTag}",
 									npcId));
 						}
 					}
@@ -532,10 +589,7 @@ public class ItemSourceSystem : ModSystem
 				}
 			}
 		}
-		catch
-		{
-			// Reflection failed — silently ignore this rule
-		}
+		catch { }
 	}
 
 	private static bool IsNPCBoss(int npcId)
