@@ -60,7 +60,9 @@ public record CraftStep(
 	int CraftCount,
 	int[] RequiredTiles,
 	List<CraftStepInput> Inputs,
-	string ConditionDescription);
+	string ConditionDescription,
+	string BiomeRequirement = null,
+	bool IsShimmerStep = false);
 
 /// <summary>One ingredient of a craft step, showing its source.</summary>
 public record CraftStepInput(

@@ -39,6 +39,10 @@ public readonly record struct WorldContext
 	public int MythrilTier { get; init; }
 	public int AdamantiteTier { get; init; }
 
+	// Difficulty
+	public bool IsExpert { get; init; }
+	public bool IsMaster { get; init; }
+
 	public bool IsCorruption => !IsCrimson;
 	public bool HardmodeOresKnown => CobaltTier != -1;
 
@@ -57,7 +61,9 @@ public readonly record struct WorldContext
 				GoldTier = WorldGen.SavedOreTiers.Gold,
 				CobaltTier = WorldGen.SavedOreTiers.Cobalt,
 				MythrilTier = WorldGen.SavedOreTiers.Mythril,
-				AdamantiteTier = WorldGen.SavedOreTiers.Adamantite
+				AdamantiteTier = WorldGen.SavedOreTiers.Adamantite,
+				IsExpert = Main.expertMode,
+				IsMaster = Main.masterMode
 			};
 		}
 		catch

@@ -51,6 +51,12 @@ public class ItemSourceSystem : ModSystem
 
 	private static bool IsSourceAvailableInWorld(ItemSource source, WorldContext worldContext)
 	{
+		// Difficulty filter: skip Expert-only drops in Normal, Master-only in non-Master
+		if (source.MinDifficulty == GameDifficulty.Expert && !worldContext.IsExpert)
+			return false;
+		if (source.MinDifficulty == GameDifficulty.Master && !worldContext.IsMaster)
+			return false;
+
 		string desc = source.Description;
 		if (string.IsNullOrEmpty(desc))
 			return true;
@@ -209,6 +215,14 @@ public class ItemSourceSystem : ModSystem
 		string eventTag = eventName != null ? $" ({eventName})" : "";
 		string diffTag = difficultyTag ?? "";
 
+		// Map difficulty tag to enum
+		GameDifficulty minDiff = difficultyTag switch
+		{
+			" [Expert+]" => GameDifficulty.Expert,
+			" [Master]" => GameDifficulty.Master,
+			_ => GameDifficulty.Normal
+		};
+
 		switch (rule)
 		{
 			// ── Leaf rules (contain item IDs directly) ──────────────
@@ -218,14 +232,16 @@ public class ItemSourceSystem : ModSystem
 					GetSourceType(),
 					$"Drop: {npcName}{eventTag}{diffTag}" + (common.chanceDenominator > 1 ? $" (1/{common.chanceDenominator})" : ""),
 					npcId,
-					1f / common.chanceDenominator));
+					1f / common.chanceDenominator,
+					minDiff));
 				break;
 
 			case DropOneByOne dropOne:
 				AddSource(dropOne.itemId, new ItemSource(
 					GetSourceType(),
 					$"Drop: {npcName}{eventTag}{diffTag}",
-					npcId));
+					npcId,
+					MinDifficulty: minDiff));
 				break;
 
 			// ── Option rules (pick from item ID arrays) ─────────────
@@ -391,6 +407,7 @@ public class ItemSourceSystem : ModSystem
 
 				// Extract conditions (night only, post-boss, etc.)
 				string condText = "";
+				List<string> shopConds = null;
 				try
 				{
 					var condTexts = new List<string>();
@@ -401,7 +418,10 @@ public class ItemSourceSystem : ModSystem
 							condTexts.Add(desc);
 					}
 					if (condTexts.Count > 0)
+					{
+						shopConds = condTexts;
 						condText = $" ({string.Join(", ", condTexts)})";
+					}
 					if (condText.Length > 50)
 						condText = condText[..49] + "..)";
 				}
@@ -410,7 +430,8 @@ public class ItemSourceSystem : ModSystem
 				AddSource(entry.Item.type, new ItemSource(
 					ItemSourceType.NPCShop,
 					$"Buy: {shopOwner}{priceText}{condText}",
-					npcShop.NpcType));
+					npcShop.NpcType,
+					ShopConditions: shopConds));
 			}
 		}
 	}

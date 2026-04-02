@@ -398,6 +398,37 @@ public class DependencyResolver
 		return tierGap * 50; // 50 per tier above current
 	}
 
+	/// <summary>
+	/// Extracts biome/environment requirement from recipe conditions.
+	/// Returns a human-readable string like "Graveyard" or "Near water", or null.
+	/// Uses reference comparison against Terraria's static Condition singletons.
+	/// </summary>
+	private static string ExtractBiomeRequirement(Recipe recipe)
+	{
+		if (recipe.Conditions.Count == 0)
+			return null;
+
+		foreach (var cond in recipe.Conditions)
+		{
+			if (cond == Condition.InGraveyard) return "Graveyard";
+			if (cond == Condition.NearWater) return "Near water";
+			if (cond == Condition.NearHoney) return "Near honey";
+			if (cond == Condition.NearLava) return "Near lava";
+			if (cond == Condition.InSnow) return "Snow biome";
+			if (cond == Condition.InDesert) return "Desert";
+			if (cond == Condition.InJungle) return "Jungle";
+			if (cond == Condition.InDungeon) return "Dungeon";
+			if (cond == Condition.InCorrupt) return "Corruption";
+			if (cond == Condition.InCrimson) return "Crimson";
+			if (cond == Condition.InHallow) return "Hallow";
+			if (cond == Condition.InGlowshroom) return "Mushroom biome";
+			if (cond == Condition.InSpace) return "Space";
+			if (cond == Condition.InUnderworld) return "Underworld";
+		}
+
+		return null;
+	}
+
 	// --- Tree flattening ---
 
 	/// <summary>
@@ -501,7 +532,8 @@ public class DependencyResolver
 
 			steps.Add(new CraftStep(
 				stepNum, shimmer.ItemType, shimmer.Quantity,
-				shimmer.Quantity, [], [shimmerInput], "Shimmer transformation"));
+				shimmer.Quantity, [], [shimmerInput], "Shimmer transformation",
+				BiomeRequirement: null, IsShimmerStep: true));
 			craftedItems[shimmer.ItemType] = stepNum;
 			return;
 		}
@@ -591,10 +623,11 @@ public class DependencyResolver
 			.ToArray();
 
 		string conditions = craft.HasConditions ? craft.ConditionDescription : null;
+		string biome = ExtractBiomeRequirement(craft.Recipe);
 
 		steps.Add(new CraftStep(
 			stepNumber, craft.ItemType, craft.Quantity,
-			craft.CraftCount, requiredTiles, inputs, conditions));
+			craft.CraftCount, requiredTiles, inputs, conditions, biome));
 
 		craftedItems[craft.ItemType] = stepNumber;
 	}

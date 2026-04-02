@@ -70,17 +70,24 @@ public class UICraftStep : UIElement
 		if (UIHelper.DrawItemIcon(spriteBatch, _step.ItemType, new Vector2(iconX, y + 2f), 22f))
 			iconX += 26f;
 
-		// "Craft Hallowed Bar x12"
+		// Action text: "Craft X" or "Shimmer X"
 		string outputName = _step.ItemType > ItemID.None ? _outputItem.Name : "Unknown";
-		string craftText = _step.Quantity > 1 ? $"Craft {outputName} x{_step.Quantity}" : $"Craft {outputName}";
-		Utils.DrawBorderString(spriteBatch, craftText, new Vector2(iconX, y + 4f), Color.White, 0.8f);
+		string verb = _step.IsShimmerStep ? "Shimmer" : "Craft";
+		Color verbColor = _step.IsShimmerStep ? new Color(200, 160, 255) : Color.White;
+		string craftText = _step.Quantity > 1 ? $"{verb} {outputName} x{_step.Quantity}" : $"{verb} {outputName}";
+		Utils.DrawBorderString(spriteBatch, craftText, new Vector2(iconX, y + 4f), verbColor, 0.8f);
 
-		// Station text (right-aligned)
-		string stationText = GetStationText();
+		// Station text + biome requirement (right-aligned)
+		string stationText = _step.IsShimmerStep ? "Shimmer Pool" : GetStationText();
+		if (_step.BiomeRequirement != null && stationText != null)
+			stationText = $"{stationText} ({_step.BiomeRequirement})";
+		else if (_step.BiomeRequirement != null)
+			stationText = _step.BiomeRequirement;
 		if (stationText != null)
 		{
+			Color stationColor = _step.BiomeRequirement != null ? new Color(140, 120, 200) : Color.Gray;
 			float stationWidth = FontAssets.MouseText.Value.MeasureString(stationText).X * 0.65f;
-			Utils.DrawBorderString(spriteBatch, stationText, new Vector2(x + dims.Width - stationWidth - 8f, y + 6f), Color.Gray, 0.65f);
+			Utils.DrawBorderString(spriteBatch, stationText, new Vector2(x + dims.Width - stationWidth - 8f, y + 6f), stationColor, 0.65f);
 		}
 
 		// Inputs

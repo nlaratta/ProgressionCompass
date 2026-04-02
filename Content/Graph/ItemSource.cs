@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace ProgressionCompass.Content.Graph;
 
 public enum ItemSourceType
@@ -19,11 +21,16 @@ public enum ItemSourceType
 /// A single item can have multiple sources (e.g., Iron Ore drops from multiple NPCs
 /// and can be mined).
 /// </summary>
+/// <summary>Minimum game difficulty required for this source.</summary>
+public enum GameDifficulty { Normal = 0, Expert = 1, Master = 2 }
+
 public record ItemSource(
 	ItemSourceType Type,
 	string Description,
 	int SourceEntityId = -1,
-	float DropRate = -1f)
+	float DropRate = -1f,
+	GameDifficulty MinDifficulty = GameDifficulty.Normal,
+	List<string> ShopConditions = null)
 {
 	/// <summary>
 	/// Scores this source for ranking. Higher = more desirable to show as primary.

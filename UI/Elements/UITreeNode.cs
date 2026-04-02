@@ -167,10 +167,16 @@ public class UITreeRow : UIElement
 		if (_node is CraftNode craftNode)
 		{
 			string stationText = GetStationText(craftNode);
+			string biome = GetBiomeRequirement(craftNode);
+			if (biome != null && stationText != null)
+				stationText = $"{stationText} ({biome})";
+			else if (biome != null)
+				stationText = biome;
 			if (stationText != null)
 			{
+				Color stColor = biome != null ? new Color(140, 120, 200) : new Color(130, 140, 180);
 				Utils.DrawBorderString(spriteBatch, $"@ {stationText}",
-					new Vector2(afterLabel, textY + 2f), new Color(130, 140, 180), 0.65f);
+					new Vector2(afterLabel, textY + 2f), stColor, 0.65f);
 				afterLabel += FontAssets.MouseText.Value.MeasureString($"@ {stationText}").X * 0.65f + 6f;
 			}
 
@@ -265,5 +271,22 @@ public class UITreeRow : UIElement
 		}
 
 		return names.Count > 0 ? string.Join(" + ", names) : null;
+	}
+
+	private static string GetBiomeRequirement(CraftNode craft)
+	{
+		if (craft.Recipe.Conditions.Count == 0)
+			return null;
+
+		foreach (var cond in craft.Recipe.Conditions)
+		{
+			if (cond == Condition.InGraveyard) return "Graveyard";
+			if (cond == Condition.NearWater) return "Near water";
+			if (cond == Condition.NearHoney) return "Near honey";
+			if (cond == Condition.NearLava) return "Near lava";
+			if (cond == Condition.InSnow) return "Snow biome";
+		}
+
+		return null;
 	}
 }
