@@ -36,6 +36,9 @@ public class UITreeRow : UIElement
 	/// <summary>Fired when the user clicks the expand/collapse arrow.</summary>
 	public event Action<UITreeRow> OnToggleExpand;
 
+	/// <summary>Fired when the user right-clicks a CraftNode to cycle its recipe alternative.</summary>
+	public event Action<UITreeRow> OnCycleRecipe;
+
 	public UITreeRow(GraphNode node, int depth, bool hasChildren, bool isLastChild)
 	{
 		_node = node;
@@ -56,6 +59,13 @@ public class UITreeRow : UIElement
 		base.LeftClick(evt);
 		if (_hasChildren)
 			OnToggleExpand?.Invoke(this);
+	}
+
+	public override void RightClick(UIMouseEvent evt)
+	{
+		base.RightClick(evt);
+		if (_node is CraftNode craft && craft.HasAlternatives)
+			OnCycleRecipe?.Invoke(this);
 	}
 
 	protected override void DrawSelf(SpriteBatch spriteBatch)
@@ -156,6 +166,17 @@ public class UITreeRow : UIElement
 			{
 				Utils.DrawBorderString(spriteBatch, $"@ {stationText}",
 					new Vector2(afterLabel, textY + 2f), new Color(130, 140, 180), 0.65f);
+				afterLabel += FontAssets.MouseText.Value.MeasureString($"@ {stationText}").X * 0.65f + 6f;
+			}
+
+			// Recipe alternatives indicator
+			if (craftNode.HasAlternatives)
+			{
+				string altText = $"(Recipe {craftNode.SelectedAlternative + 1}/{craftNode.AlternativeCount})";
+				bool hoverAlt = IsMouseHovering;
+				Color altColor = hoverAlt ? new Color(120, 200, 255) : new Color(80, 150, 200);
+				Utils.DrawBorderString(spriteBatch, altText,
+					new Vector2(afterLabel, textY + 2f), altColor, 0.55f);
 			}
 
 			// Condition warning

@@ -40,6 +40,9 @@ public class CraftPathState : UIState
 	private bool _resolving;
 	private float _contentLeft; // Left offset for center column panels
 
+	// Recipe preferences: itemType → preferred recipe index in Main.recipe[]
+	private Dictionary<int, int> _recipePreferences = [];
+
 	// Analysis (single item view for Materials/Tree/Craft Order tabs)
 	private readonly TargetQueue _queue = new();
 	private MultiTargetResult _multiResult;
@@ -233,6 +236,8 @@ public class CraftPathState : UIState
 		_treePanel.Left.Set(contentLeft, 0f);
 		_treePanel.Width.Set(contentW, 1f);
 		_treePanel.Height.Set(contentH, 1f);
+		_treePanel.SetRecipePreferences(_recipePreferences);
+		_treePanel.OnRecipeCycled += OnRecipeCycled;
 		_mainPanel.Append(_treePanel);
 
 		_craftOrderPanel = new CraftOrderPanel();
@@ -271,6 +276,13 @@ public class CraftPathState : UIState
 		_queue.Add(itemType);
 		_analysisIndicator.SetItem(itemType);
 		RunResolver();
+	}
+
+	private void OnRecipeCycled(int itemType, int alternativeIndex)
+	{
+		_recipePreferences[itemType] = alternativeIndex;
+		_queue.InvalidateCache();
+		if (_queue.Count > 0) RunResolver();
 	}
 
 	private void OnDashboardAnalyze(int itemType)
@@ -378,7 +390,11 @@ public class CraftPathState : UIState
 		try
 		{
 			var tp = Main.LocalPlayer?.GetModPlayer<TrackingPlayer>();
-			if (tp != null) tp.ChestsEnabled = _chestsEnabled;
+			if (tp != null)
+			{
+				tp.ChestsEnabled = _chestsEnabled;
+				tp.RecipePreferences = _recipePreferences;
+			}
 		}
 		catch { }
 	}
@@ -405,7 +421,7 @@ public class CraftPathState : UIState
 		{
 			try
 			{
-				var result = _queue.ResolveAll(recipeIndex, sourceSystem, inventoryCopy, includeChests);
+				var result = _queue.ResolveAll(recipeIndex, sourceSystem, inventoryCopy, includeChests, _recipePreferences);
 				_pendingResult = result;
 			}
 			catch (Exception ex)
@@ -576,6 +592,18 @@ public class CraftPathState : UIState
 			}
 			_configApplied = true;
 		}
+
+		// Restore recipe preferences from TrackingPlayer (persists across UI toggles)
+		try
+		{
+			var tp = Main.LocalPlayer?.GetModPlayer<TrackingPlayer>();
+			if (tp?.RecipePreferences != null && tp.RecipePreferences.Count > 0)
+			{
+				_recipePreferences = tp.RecipePreferences;
+				_treePanel?.SetRecipePreferences(_recipePreferences);
+			}
+		}
+		catch { }
 
 		SyncChestToggle();
 

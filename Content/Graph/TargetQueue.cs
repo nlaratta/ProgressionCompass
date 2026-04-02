@@ -66,11 +66,12 @@ public class TargetQueue
 		RecipeIndexSystem recipeIndex,
 		ItemSourceSystem sourceSystem,
 		Dictionary<int, InventoryEntry> inventory,
-		bool includeChests)
+		bool includeChests,
+		Dictionary<int, int> recipePreferences = null)
 	{
 		_cache.CheckInventory(inventory, includeChests);
 
-		var resolver = new DependencyResolver(recipeIndex, sourceSystem);
+		var resolver = new DependencyResolver(recipeIndex, sourceSystem, recipePreferences);
 		var perTarget = new List<ResolverResult>();
 
 		// Shared mutable inventory — each resolve consumes from what's left

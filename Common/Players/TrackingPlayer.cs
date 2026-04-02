@@ -48,6 +48,9 @@ public class TrackingPlayer : ModPlayer
 	/// </summary>
 	public bool ChestsEnabled { get; set; }
 
+	/// <summary>Recipe preferences from the UI (shared with CraftPathState).</summary>
+	public Dictionary<int, int> RecipePreferences { get; set; }
+
 	/// <summary>Force a full refresh of all tracked goals.</summary>
 	public void RefreshTracking()
 	{
@@ -60,7 +63,7 @@ public class TrackingPlayer : ModPlayer
 		float chestRange = config?.ChestScanRange ?? InventoryScanner.DefaultChestRangeTiles;
 		var inventory = InventoryScanner.Scan(ChestsEnabled, chestRange);
 
-		Tracking.Refresh(recipeIndex, sourceSystem, inventory, ChestsEnabled);
+		Tracking.Refresh(recipeIndex, sourceSystem, inventory, ChestsEnabled, RecipePreferences);
 	}
 
 	/// <summary>

@@ -70,9 +70,10 @@ public class TrackingState
 		RecipeIndexSystem recipeIndex,
 		ItemSourceSystem sourceSystem,
 		Dictionary<int, InventoryEntry> inventory,
-		bool includeChests)
+		bool includeChests,
+		Dictionary<int, int> recipePreferences = null)
 	{
-		var resolver = new DependencyResolver(recipeIndex, sourceSystem);
+		var resolver = new DependencyResolver(recipeIndex, sourceSystem, recipePreferences);
 
 		// Resolve each goal independently (don't share inventory — each goal
 		// shows its own full requirements, the action plan merges them)

@@ -19,11 +19,14 @@ public class DependencyResolver
 
 	private readonly RecipeIndexSystem _recipeIndex;
 	private readonly ItemSourceSystem _sourceSystem;
+	private readonly Dictionary<int, int> _recipePreferences;
 
-	public DependencyResolver(RecipeIndexSystem recipeIndex, ItemSourceSystem sourceSystem)
+	public DependencyResolver(RecipeIndexSystem recipeIndex, ItemSourceSystem sourceSystem,
+		Dictionary<int, int> recipePreferences = null)
 	{
 		_recipeIndex = recipeIndex;
 		_sourceSystem = sourceSystem;
+		_recipePreferences = recipePreferences ?? [];
 	}
 
 	/// <summary>
@@ -190,7 +193,21 @@ public class DependencyResolver
 			// Sort by acquisition cost ascending
 			candidates.Sort((a, b) => a.node.AcquisitionCost.CompareTo(b.node.AcquisitionCost));
 
-			var best = candidates[0];
+			// Apply user's recipe preference: find candidate matching the preferred recipe index
+			int preferredIdx = 0;
+			if (_recipePreferences.TryGetValue(itemType, out int prefRecipeIdx) && prefRecipeIdx >= 0)
+			{
+				for (int c = 0; c < candidates.Count; c++)
+				{
+					if (GetRecipeIndex(candidates[c].node.Recipe) == prefRecipeIdx)
+					{
+						preferredIdx = c;
+						break;
+					}
+				}
+			}
+
+			var best = candidates[preferredIdx];
 
 			// Attach all candidates as alternatives if more than one
 			if (candidates.Count > 1)
