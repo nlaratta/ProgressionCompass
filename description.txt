@@ -1,15 +1,22 @@
-Progression Compass — your guide through Terraria's crafting and progression.
+Progression Compass — always know what to do next.
 
-Features:
-- Optimal crafting paths for any item with full dependency trees
-- Material checklist with source info (drops, shops, shimmer, events, fishing)
-- Step-by-step crafting order with alternate sources and drop rates
-- Gear upgrade recommendations by class (Melee/Ranged/Mage/Summoner)
-- Boss progression tracking with summon hints
-- Item tracking with TODO action plan and HUD overlay
+Stop guessing what to craft, where to farm, and which boss to fight. Progression Compass scans your inventory and tells you exactly what upgrades are within reach, what materials you're missing, and where to get them.
+
+What makes it different:
+- Knows what you OWN — scans inventory, banks, equipment, chests, and Magic Storage
+- Shows what's NEXT — gear upgrades ranked by your class, tier, and current loadout
+- Tells you WHERE — action plans grouped by location so you make one trip, not ten
+- Tracks your GOALS — pin any item and get a persistent HUD overlay with progress
+
+Key features:
 - "Ready to Craft" / "Almost Ready" / "Building Toward" dashboard
+- Class-aware upgrade recommendations (Melee/Ranged/Mage/Summoner)
+- Boss progression with summon hints (integrates with Boss Checklist)
+- Step-by-step craft order with source info, drop rates, and alternates
+- TODO action plan: what to farm, buy, craft, and which events to trigger
+- Shimmer transforms, shop prices/conditions, expert/master drop tagging
 
 Works automatically with all loaded mods (Calamity, Thorium, etc.).
-Scans inventory, banks, equipment, nearby chests, and Magic Storage.
+Pairs well with Recipe Browser — we handle progression planning, it handles recipe browsing.
 
 Client-side only — no server impact in multiplayer.
