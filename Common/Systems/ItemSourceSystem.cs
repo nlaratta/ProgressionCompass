@@ -159,6 +159,8 @@ public class ItemSourceSystem : ModSystem
 
 		switch (rule)
 		{
+			// ── Leaf rules (contain item IDs directly) ──────────────
+			// Note: ItemDropWithConditionRule extends CommonDrop, so this catches both
 			case CommonDrop common:
 				AddSource(common.itemId, new ItemSource(
 					GetSourceType(),
@@ -167,6 +169,14 @@ public class ItemSourceSystem : ModSystem
 					1f / common.chanceDenominator));
 				break;
 
+			case DropOneByOne dropOne:
+				AddSource(dropOne.itemId, new ItemSource(
+					GetSourceType(),
+					$"Drop: {npcName}{eventTag}{diffTag}",
+					npcId));
+				break;
+
+			// ── Option rules (pick from item ID arrays) ─────────────
 			case OneFromOptionsNotScaledWithLuckDropRule oneFromOptions:
 				foreach (int itemId in oneFromOptions.dropIds)
 					AddSource(itemId, new ItemSource(
@@ -183,6 +193,31 @@ public class ItemSourceSystem : ModSystem
 						npcId));
 				break;
 
+			case FewFromOptionsDropRule fewFromOptions:
+				foreach (int itemId in fewFromOptions.dropIds)
+					AddSource(itemId, new ItemSource(
+						GetSourceType(),
+						$"Drop: {npcName}{eventTag}{diffTag}",
+						npcId));
+				break;
+
+			case FewFromOptionsNotScaledWithLuckDropRule fewFromOptionsNoLuck:
+				foreach (int itemId in fewFromOptionsNoLuck.dropIds)
+					AddSource(itemId, new ItemSource(
+						GetSourceType(),
+						$"Drop: {npcName}{eventTag}{diffTag}",
+						npcId));
+				break;
+
+			case FromOptionsWithoutRepeatsDropRule fromOptionsNoRepeats:
+				foreach (int itemId in fromOptionsNoRepeats.dropIds)
+					AddSource(itemId, new ItemSource(
+						GetSourceType(),
+						$"Drop: {npcName}{eventTag}{diffTag}",
+						npcId));
+				break;
+
+			// ── Difficulty branching ─────────────────────────────────
 			case DropBasedOnExpertMode expertDrop:
 				ExtractDropsFromRule(expertDrop.ruleForNormalMode, npcId, npcName, isBoss, eventName, difficultyTag);
 				ExtractDropsFromRule(expertDrop.ruleForExpertMode, npcId, npcName, isBoss, eventName, " [Expert+]");
@@ -193,11 +228,51 @@ public class ItemSourceSystem : ModSystem
 				ExtractDropsFromRule(masterDrop.ruleForMasterMode, npcId, npcName, isBoss, eventName, " [Master]");
 				break;
 
+			case DropBasedOnMasterAndExpertMode masterExpert:
+				ExtractDropsFromRule(masterExpert.ruleForDefault, npcId, npcName, isBoss, eventName, difficultyTag);
+				ExtractDropsFromRule(masterExpert.ruleForExpertmode, npcId, npcName, isBoss, eventName, " [Expert+]");
+				ExtractDropsFromRule(masterExpert.ruleForMasterMode, npcId, npcName, isBoss, eventName, " [Master]");
+				break;
+
+			// ── Container rules (contain nested IItemDropRule[]) ─────
+			case OneFromRulesRule oneFromRules:
+				foreach (var subRule in oneFromRules.options)
+					ExtractDropsFromRule(subRule, npcId, npcName, isBoss, eventName, difficultyTag);
+				break;
+
+			case FewFromRulesRule fewFromRules:
+				foreach (var subRule in fewFromRules.options)
+					ExtractDropsFromRule(subRule, npcId, npcName, isBoss, eventName, difficultyTag);
+				break;
+
+			case SequentialRulesRule sequential:
+				foreach (var subRule in sequential.rules)
+					ExtractDropsFromRule(subRule, npcId, npcName, isBoss, eventName, difficultyTag);
+				break;
+
+			case SequentialRulesNotScalingWithLuckRule sequentialNoLuck:
+				foreach (var subRule in sequentialNoLuck.rules)
+					ExtractDropsFromRule(subRule, npcId, npcName, isBoss, eventName, difficultyTag);
+				break;
+
+			// ── Condition wrapper ────────────────────────────────────
 			case LeadingConditionRule condRule:
 				foreach (var chained in condRule.ChainedRules)
 					ExtractDropsFromRule(chained.RuleToChain, npcId, npcName, isBoss, eventName, difficultyTag);
 				break;
 
+			// ── Special rules ────────────────────────────────────────
+			case AlwaysAtleastOneSuccessDropRule atLeastOne:
+				foreach (var subRule in atLeastOne.rules)
+					ExtractDropsFromRule(subRule, npcId, npcName, isBoss, eventName, difficultyTag);
+				break;
+
+			// ── Skip rules (no item data) ────────────────────────────
+			case DropNothing:
+			case CoinsRule:
+				break;
+
+			// ── Fallback: reflection for modded custom rules ─────────
 			default:
 				TryExtractViaReflection(rule, npcId, npcName, isBoss, eventName, difficultyTag);
 				break;
@@ -234,8 +309,12 @@ public class ItemSourceSystem : ModSystem
 	{
 		foreach (var shop in NPCShopDatabase.AllShops)
 		{
+			// Handle non-standard shops (Traveling Merchant, modded special shops)
 			if (shop is not NPCShop npcShop)
+			{
+				IndexSpecialShop(shop);
 				continue;
+			}
 
 			string shopOwner = Lang.GetNPCNameValue(npcShop.NpcType);
 
@@ -281,6 +360,45 @@ public class ItemSourceSystem : ModSystem
 					$"Buy: {shopOwner}{priceText}{condText}",
 					npcShop.NpcType));
 			}
+		}
+	}
+
+	/// <summary>
+	/// Indexes items from non-standard shops (TravellingMerchantShop, modded special shops)
+	/// via AbstractNPCShop.ActiveEntries.
+	/// </summary>
+	private void IndexSpecialShop(AbstractNPCShop shop)
+	{
+		try
+		{
+			string shopOwner = Lang.GetNPCNameValue(shop.NpcType);
+			string shopNote = shop is TravellingMerchantShop ? " (Traveling Merchant, random stock)" : "";
+
+			foreach (var entry in shop.ActiveEntries)
+			{
+				if (entry.Item.type <= ItemID.None)
+					continue;
+
+				string priceText = "";
+				try
+				{
+					int price = (entry.Item.shopCustomPrice.HasValue && entry.Item.shopCustomPrice.Value > 0)
+						? entry.Item.shopCustomPrice.Value
+						: entry.Item.value / 5;
+					if (entry.Item.shopSpecialCurrency < 0 && price > 0)
+						priceText = $" ~{FormatCoins(price)}";
+				}
+				catch { }
+
+				AddSource(entry.Item.type, new ItemSource(
+					ItemSourceType.NPCShop,
+					$"Buy: {shopOwner}{priceText}{shopNote}",
+					shop.NpcType));
+			}
+		}
+		catch (Exception ex)
+		{
+			Common.Log.Warn($"Failed to index special shop for NPC {shop.NpcType}: {ex.Message}");
 		}
 	}
 
