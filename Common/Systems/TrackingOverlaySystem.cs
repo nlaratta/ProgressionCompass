@@ -212,7 +212,7 @@ public class TrackingOverlayState : UIState
 		{
 			var action = tracking.ActionPlan[a];
 			totalH += 24f; // header
-			totalH += Math.Min(action.Items.Count, 4) * 18f;
+			totalH += Math.Min(action.Items.Count, 4) * 30f;
 			totalH += 8f; // spacing
 		}
 
@@ -353,7 +353,19 @@ public class TrackingOverlayState : UIState
 				float qW = FontAssets.MouseText.Value.MeasureString(qty).X * 0.5f;
 				Utils.DrawBorderString(spriteBatch, qty, new Vector2(px + PanelW - qW - 8f, y + 1f), qC, 0.5f);
 
-				y += 18f;
+				// Source info line: "Drop: Zombie", "Buy: Merchant ~5g", etc.
+				if (!string.IsNullOrEmpty(actionItem.HowToGet))
+				{
+					string howTo = actionItem.HowToGet;
+					if (howTo.Length > 30) howTo = howTo[..29] + "..";
+					Color howToColor = actionItem.Source != null
+						? UIHelper.GetSourceColor(actionItem.Source.Type)
+						: new Color(120, 120, 150);
+					Utils.DrawBorderString(spriteBatch, howTo,
+						new Vector2(px + 18f, y + 15f), howToColor, 0.42f);
+				}
+
+				y += 30f;
 				shown++;
 			}
 		}
