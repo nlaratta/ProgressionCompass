@@ -253,6 +253,7 @@ public class DependencyResolver
 
 		GraphNode bestNode = null;
 		int bestCost = int.MaxValue;
+		bool bestIsPreferred = false;
 		Dictionary<int, int> bestAvailable = null;
 
 		foreach (int memberType in group.ValidItems)
@@ -260,11 +261,17 @@ public class DependencyResolver
 			var snapshot = new Dictionary<int, int>(available);
 			var node = ResolveItem(memberType, quantity, available, visited, depth);
 			int cost = node.AcquisitionCost;
+			bool isPreferred = _worldContext.IsPreferredOreItem(memberType);
 
-			if (cost < bestCost)
+			// Pick this member if: cheaper, OR same cost but world-preferred ore
+			bool isBetter = cost < bestCost
+				|| (cost == bestCost && isPreferred && !bestIsPreferred);
+
+			if (isBetter)
 			{
 				bestCost = cost;
 				bestNode = node;
+				bestIsPreferred = isPreferred;
 				bestAvailable = new Dictionary<int, int>(available);
 			}
 

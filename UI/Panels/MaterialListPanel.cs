@@ -5,8 +5,10 @@ using Microsoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.GameContent.UI.Elements;
+using Terraria.ID;
 using Terraria.UI;
 using ProgressionCompass.Content.Graph;
+using ProgressionCompass.Content.Progression;
 using ProgressionCompass.UI.Elements;
 
 namespace ProgressionCompass.UI.Panels;
@@ -43,9 +45,12 @@ public class MaterialListPanel : UIElement
 		Append(_scrollbar);
 	}
 
-	public void SetResults(ResolverResult result, bool includeChests)
+	private WorldContext _worldContext;
+
+	public void SetResults(ResolverResult result, bool includeChests, WorldContext worldContext = default)
 	{
 		_includeChests = includeChests;
+		_worldContext = worldContext;
 		_list.Clear();
 
 		if (result?.Tree == null)
@@ -83,7 +88,7 @@ public class MaterialListPanel : UIElement
 			{
 				if (!mat.IsComplete(includeChests))
 				{
-					var row = new UIMaterialRow(mat, includeChests);
+					var row = new UIMaterialRow(mat, includeChests, _worldContext);
 					row.OnClicked += type => OnAnalyzeItem?.Invoke(type);
 					_list.Add(row);
 				}
@@ -98,7 +103,7 @@ public class MaterialListPanel : UIElement
 			{
 				if (mat.IsComplete(includeChests))
 				{
-					var row = new UIMaterialRow(mat, includeChests);
+					var row = new UIMaterialRow(mat, includeChests, _worldContext);
 					row.OnClicked += type => OnAnalyzeItem?.Invoke(type);
 					_list.Add(row);
 				}
@@ -310,6 +315,8 @@ internal class UIMaterialRow : UIElement
 	private readonly MaterialEntry _material;
 	private readonly bool _includeChests;
 	private readonly Item _displayItem;
+	private readonly WorldContext _worldContext;
+	private readonly string _altName; // "or Palladium Bar" when hardmode ore tier unknown
 
 	public event Action<int> OnClicked;
 
@@ -319,13 +326,25 @@ internal class UIMaterialRow : UIElement
 		OnClicked?.Invoke(_material.ItemType);
 	}
 
-	public UIMaterialRow(MaterialEntry material, bool includeChests)
+	public UIMaterialRow(MaterialEntry material, bool includeChests, WorldContext worldContext = default)
 	{
 		_material = material;
 		_includeChests = includeChests;
+		_worldContext = worldContext;
 
 		_displayItem = new Item();
 		_displayItem.SetDefaults(material.ItemType);
+
+		// Check for hardmode ore alternative when tier is unknown
+		int? altId = worldContext.GetOreAlternative(material.ItemType);
+		if (altId.HasValue && !worldContext.IsPreferredOreItem(material.ItemType)
+			&& !worldContext.IsPreferredOreItem(altId.Value))
+		{
+			// Both variants are equally valid (tier unknown) — show alternative name
+			var altItem = new Item();
+			altItem.SetDefaults(altId.Value);
+			_altName = $" or {altItem.Name}";
+		}
 
 		Width.Set(0, 1f);
 
@@ -368,6 +387,14 @@ internal class UIMaterialRow : UIElement
 		float nameY = dims.Y + (36f - font.LineSpacing) / 2f;
 		var namePos = new Vector2(dims.X + 40f, nameY);
 		Utils.DrawBorderString(spriteBatch, name, namePos, Color.White);
+
+		// Show ore alternative when hardmode tier unknown (e.g., "or Palladium Bar")
+		if (_altName != null)
+		{
+			float nameW = font.MeasureString(name).X;
+			Utils.DrawBorderString(spriteBatch, _altName,
+				new Vector2(namePos.X + nameW + 2f, nameY + 2f), new Color(160, 160, 190), 0.7f);
+		}
 
 		// Count: "8/12" or "1/1 DONE"
 		int owned = _material.Owned.AvailableCount(_includeChests);

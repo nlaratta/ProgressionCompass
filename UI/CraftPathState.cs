@@ -38,6 +38,7 @@ public class CraftPathState : UIState
 
 	private bool _chestsEnabled;
 	private bool _resolving;
+	private global::ProgressionCompass.Content.Progression.WorldContext _lastWorldContext;
 	private float _contentLeft; // Left offset for center column panels
 
 	// Recipe preferences: itemType → preferred recipe index in Main.recipe[]
@@ -416,6 +417,7 @@ public class CraftPathState : UIState
 		var inventoryCopy = new Dictionary<int, InventoryEntry>(_lastInventory);
 		bool includeChests = _chestsEnabled;
 		var worldContext = global::ProgressionCompass.Content.Progression.WorldContext.Capture();
+		_lastWorldContext = worldContext;
 
 		_resolving = true;
 
@@ -547,7 +549,7 @@ public class CraftPathState : UIState
 		if (_multiResult == null || _multiResult.PerTarget.Count == 0)
 		{
 			_statusBar.Clear();
-			_materialPanel.SetResults(null, _chestsEnabled);
+			_materialPanel.SetResults(null, _chestsEnabled, _lastWorldContext);
 			_treePanel.SetResult(null);
 			_craftOrderPanel.SetResult(null);
 			return;
@@ -567,7 +569,7 @@ public class CraftPathState : UIState
 			Materials = materialsToShow,
 			CraftOrder = focusedResult.CraftOrder
 		};
-		_materialPanel.SetResults(displayResult, _chestsEnabled);
+		_materialPanel.SetResults(displayResult, _chestsEnabled, _lastWorldContext);
 		_treePanel.SetResult(focusedResult);
 		_craftOrderPanel.SetResult(focusedResult);
 	}
