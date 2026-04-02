@@ -25,7 +25,8 @@ public static class BossDatabase
 	/// Returns the next undefeated bosses the player should fight,
 	/// sorted by progression order.
 	/// </summary>
-	public static List<BossInfo> GetNextBosses(Tier currentTier, ItemSourceSystem sourceSystem, int maxCount = 3)
+	public static List<BossInfo> GetNextBosses(Tier currentTier, ItemSourceSystem sourceSystem,
+		WorldContext worldContext = default, int maxCount = 3)
 	{
 		List<BossInfo> allBosses;
 
@@ -68,6 +69,16 @@ public static class BossDatabase
 				continue;
 			if (boss.RequiredTier > currentTier + 2)
 				continue;
+
+			// Skip wrong-evil bosses (unless drunk world has both)
+			if (!worldContext.HasBothEvils)
+			{
+				if (boss.NpcType == NPCID.EaterofWorldsHead && worldContext.IsCrimson)
+					continue;
+				if (boss.NpcType == NPCID.BrainofCthulhu && !worldContext.IsCrimson)
+					continue;
+			}
+
 			next.Add(boss);
 			if (next.Count >= maxCount)
 				break;

@@ -4,9 +4,11 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.GameContent;
+using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.UI;
 using ProgressionCompass.Content.Progression;
+using ProgressionCompass.Content.Tracking;
 using ProgressionCompass.UI.Elements;
 using ProgressionCompass.UI.Panels;
 
@@ -111,27 +113,35 @@ public class UpgradeRecommendationsState : UIState
 
 	public void SetResults(List<GearRecommendation> recs, PlayerClass filter,
 		PlayerStats stats = null, List<BossInfo> nextBosses = null,
-		List<CombinationResult> combos = null)
+		List<CombinationResult> combos = null,
+		WorldContext worldContext = default)
 	{
 		if (_panel != null)
-			_panel.SetResults(recs, filter, stats, nextBosses, combos);
+			_panel.SetResults(recs, filter, stats, nextBosses, combos, worldContext);
 	}
 }
 
 /// <summary>
 /// The upgrade recommendations panel — draggable window showing
-/// gear upgrades grouped by category.
+/// gear upgrades grouped by category (left) and source priority rankings (right).
 /// </summary>
 internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 {
+	// Left column: upgrade categories
 	private Terraria.GameContent.UI.Elements.UIList _list;
 	private Terraria.GameContent.UI.Elements.UIScrollbar _scrollbar;
+
+	// Right column: source priority ("Where to Go")
+	private Terraria.GameContent.UI.Elements.UIList _sourceList;
+	private Terraria.GameContent.UI.Elements.UIScrollbar _sourceScroll;
+
 	private UIClassFilterBar _classFilter;
 
 	private PlayerClass _activeFilter = PlayerClass.Mixed;
 	private List<GearRecommendation> _allRecs;
 	private List<CombinationResult> _allCombos;
 	private List<UpgradeItem> _mergedItems;
+	private SourcePriorityResult _sourcePriority;
 	private PlayerStats _stats;
 	private List<BossInfo> _bosses;
 	private readonly Dictionary<string, bool> _collapsed = [];
@@ -142,8 +152,10 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 	public event Action<int> OnAnalyzeItem;
 	public event Action OnCloseClicked;
 
-	private const float PanelW = 750f;
-	private const float PanelH = 620f;
+	private const float PanelW = 960f;
+	private const float PanelH = 680f;
+	private const float LeftColumnPct = 0.55f;
+	private const float DividerGap = 6f;
 
 	public UpgradeRecommendationsPanel()
 	{
@@ -188,12 +200,16 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		_classFilter.Top.Set(26f, 0f);
 		_classFilter.Width.Set(0, 1f);
 		_classFilter.SelectedClass = _activeFilter;
-		_classFilter.OnFilterChanged += newFilter => { _activeFilter = newFilter; RenderList(); };
+		_classFilter.OnFilterChanged += newFilter =>
+		{
+			_activeFilter = newFilter;
+			RenderList();
+			RenderSourceList();
+		};
 		Append(_classFilter);
 
 		float listTop = 52f;
 
-		// Info cards (expanded mode only)
 		// Info cards
 		Tier tier = Tier.PreBoss;
 		try { tier = ProgressionTier.Detect(); } catch { }
@@ -216,10 +232,10 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 
 		listTop = 188f;
 
-		// Scrollable list
+		// ── Left column: Upgrades ───────────────────────────────
 		_list = new Terraria.GameContent.UI.Elements.UIList();
 		_list.Top.Set(listTop, 0f);
-		_list.Width.Set(-16f, 1f);
+		_list.Width.Set(-16f, LeftColumnPct);
 		_list.Height.Set(-(listTop + 4f), 1f);
 		_list.ListPadding = 4f;
 		_list.ManualSortMethod = _ => { };
@@ -227,17 +243,60 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 
 		_scrollbar = new Terraria.GameContent.UI.Elements.UIScrollbar();
 		_scrollbar.Top.Set(listTop, 0f);
-		_scrollbar.Left.Set(-14f, 1f);
+		_scrollbar.Left.Set(-14f, LeftColumnPct);
 		_scrollbar.Height.Set(-(listTop + 4f), 1f);
 		_list.SetScrollbar(_scrollbar);
 		Append(_scrollbar);
 
+		// ── Right column: Where to Go ───────────────────────────
+		float rightLeft = LeftColumnPct;
+		float rightWidth = 1f - LeftColumnPct;
+
+		// Column header
+		var sourceHeader = new Terraria.GameContent.UI.Elements.UIText("Where to Go", 0.7f);
+		sourceHeader.Top.Set(listTop - 20f, 0f);
+		sourceHeader.Left.Set(DividerGap + 4f, rightLeft);
+		Append(sourceHeader);
+
+		_sourceList = new Terraria.GameContent.UI.Elements.UIList();
+		_sourceList.Top.Set(listTop, 0f);
+		_sourceList.Left.Set(DividerGap, rightLeft);
+		_sourceList.Width.Set(-(DividerGap + 16f), rightWidth);
+		_sourceList.Height.Set(-(listTop + 4f), 1f);
+		_sourceList.ListPadding = 4f;
+		_sourceList.ManualSortMethod = _ => { };
+		Append(_sourceList);
+
+		_sourceScroll = new Terraria.GameContent.UI.Elements.UIScrollbar();
+		_sourceScroll.Top.Set(listTop, 0f);
+		_sourceScroll.Left.Set(-14f, 1f);
+		_sourceScroll.Height.Set(-(listTop + 4f), 1f);
+		_sourceList.SetScrollbar(_sourceScroll);
+		Append(_sourceScroll);
+
 		Recalculate();
 	}
 
+	protected override void DrawChildren(SpriteBatch spriteBatch)
+	{
+		base.DrawChildren(spriteBatch);
+
+		// Draw vertical divider between columns
+		var dims = GetInnerDimensions();
+		float divX = dims.X + dims.Width * LeftColumnPct;
+		float divTop = dims.Y + 188f;
+		float divH = dims.Height - 188f - 4f;
+		spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+			new Rectangle((int)divX, (int)divTop, 1, (int)divH),
+			new Color(60, 70, 130) * 0.4f);
+	}
+
+	private WorldContext _worldContext;
+
 	public void SetResults(List<GearRecommendation> recs, PlayerClass filter,
 		PlayerStats stats = null, List<BossInfo> nextBosses = null,
-		List<CombinationResult> combos = null)
+		List<CombinationResult> combos = null,
+		WorldContext worldContext = default)
 	{
 		_allRecs = recs;
 		_allCombos = combos;
@@ -245,13 +304,24 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		_activeFilter = filter;
 		_stats = stats;
 		_bosses = nextBosses;
+		_worldContext = worldContext;
+
+		// Compute source priorities from merged upgrades
+		var sourceSystem = ModContent.GetInstance<ItemSourceSystem>();
+		_sourcePriority = _mergedItems != null && sourceSystem != null
+			? SourcePriorityAnalyzer.Analyze(_mergedItems, sourceSystem, worldContext)
+			: null;
+
 		if (_classFilter != null)
 			_classFilter.SelectedClass = filter;
 		BuildLayout();
 		RenderList();
+		RenderSourceList();
 	}
 
 	private bool IsSectionCollapsed(string name) => _collapsed.GetValueOrDefault(name, false);
+
+	// ── Left Column: Upgrade List ───────────────────────────────
 
 	private void RenderList()
 	{
@@ -272,7 +342,7 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		var filtered = new List<UpgradeItem>();
 		foreach (var upgrade in _mergedItems)
 		{
-			var item = Terraria.ID.ContentSamples.ItemsByType.GetValueOrDefault(upgrade.ItemType);
+			var item = ContentSamples.ItemsByType.GetValueOrDefault(upgrade.ItemType);
 			if (item != null && !ClassDetector.ItemMatchesClass(item, _activeFilter, strict: true))
 				continue;
 			filtered.Add(upgrade);
@@ -287,7 +357,6 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 			r.Acquisition is AcquisitionMethod.Event or AcquisitionMethod.Fishing
 			or AcquisitionMethod.Exploration or AcquisitionMethod.Unknown);
 
-		// Craftable items sub-grouped by category
 		if (craftable.Count > 0)
 		{
 			AddCategorySection("Craftable Weapons", craftable.FindAll(r => r.Category == GearCategory.Weapon));
@@ -304,6 +373,49 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 
 		if (filtered.Count == 0)
 			_list.Add(new UIEmptyMessage("No upgrades for this class."));
+	}
+
+	// ── Right Column: Source Priority List ───────────────────────
+
+	private void RenderSourceList()
+	{
+		if (_sourceList == null) return;
+		_sourceList.Clear();
+
+		if (_sourcePriority == null || _sourcePriority.Rankings.Count == 0)
+		{
+			_sourceList.Add(new UIEmptyMessage("No farmable locations — all upgrades are craftable!"));
+			return;
+		}
+
+		// Filter rankings to only show locations relevant to current class filter
+		foreach (var ranking in _sourcePriority.Rankings)
+		{
+			// Check if any drop in this location feeds an upgrade matching the class filter
+			if (_activeFilter != PlayerClass.Mixed && _mergedItems != null)
+			{
+				bool hasRelevant = false;
+				foreach (var drop in ranking.Drops)
+				{
+					foreach (var c in drop.FeedsInto)
+					{
+						var item = ContentSamples.ItemsByType.GetValueOrDefault(c.UpgradeItemType);
+						if (item == null || ClassDetector.ItemMatchesClass(item, _activeFilter, strict: true))
+						{
+							hasRelevant = true;
+							break;
+						}
+					}
+					if (hasRelevant) break;
+				}
+				if (!hasRelevant) continue;
+			}
+
+			_sourceList.Add(new UILocationCard(ranking, type => OnAnalyzeItem?.Invoke(type)));
+		}
+
+		if (_sourceList.Count == 0)
+			_sourceList.Add(new UIEmptyMessage("No locations for this class."));
 	}
 
 	private const int InitialShowCount = 8;

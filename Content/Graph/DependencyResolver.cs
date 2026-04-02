@@ -5,6 +5,7 @@ using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
 using ProgressionCompass.Common.Systems;
+using ProgressionCompass.Content.Progression;
 
 namespace ProgressionCompass.Content.Graph;
 
@@ -20,13 +21,15 @@ public class DependencyResolver
 	private readonly RecipeIndexSystem _recipeIndex;
 	private readonly ItemSourceSystem _sourceSystem;
 	private readonly Dictionary<int, int> _recipePreferences;
+	private readonly WorldContext _worldContext;
 
 	public DependencyResolver(RecipeIndexSystem recipeIndex, ItemSourceSystem sourceSystem,
-		Dictionary<int, int> recipePreferences = null)
+		Dictionary<int, int> recipePreferences = null, WorldContext worldContext = default)
 	{
 		_recipeIndex = recipeIndex;
 		_sourceSystem = sourceSystem;
 		_recipePreferences = recipePreferences ?? [];
+		_worldContext = worldContext;
 	}
 
 	/// <summary>
@@ -115,7 +118,7 @@ public class DependencyResolver
 		// Step 2b: Check if this item is a raw material that happens to have
 		// reverse-decoration recipes (wall→block, platform→block, etc.).
 		// If it has non-crafting sources and ALL recipes are reversals, prefer gathering.
-		var sources = _sourceSystem?.GetSources(itemType);
+		var sources = _sourceSystem?.GetSources(itemType, _worldContext);
 		if (sources != null && sources.Count > 0 && AreAllRecipesReversals(itemType, recipes))
 		{
 			if (usedFromInventory > 0)
@@ -134,6 +137,11 @@ public class DependencyResolver
 			// Cycle detection: check if this recipe is already on our DFS path
 			int recipeIndex = GetRecipeIndex(recipe);
 			if (visited.Contains(recipeIndex))
+				continue;
+
+			// World evil filter: skip recipes affiliated with the wrong world evil
+			EvilAffiliation recipeEvil = EvilAffiliationMap.GetRecipeAffiliation(recipe);
+			if (!_worldContext.IsAvailable(recipeEvil))
 				continue;
 
 			// Calculate how many times we must execute this recipe
@@ -277,7 +285,7 @@ public class DependencyResolver
 
 	private AcquireNode MakeAcquireNode(int itemType, int quantity)
 	{
-		var sources = _sourceSystem?.GetSources(itemType) ?? [];
+		var sources = _sourceSystem?.GetSources(itemType, _worldContext) ?? [];
 		return new AcquireNode(itemType, quantity, sources);
 	}
 
@@ -300,7 +308,7 @@ public class DependencyResolver
 		foreach (var (itemType, qty) in needed)
 		{
 			var owned = inventory.GetValueOrDefault(itemType, InventoryEntry.Empty);
-			var sources = _sourceSystem?.GetSources(itemType) ?? [];
+			var sources = _sourceSystem?.GetSources(itemType, _worldContext) ?? [];
 			materials.Add(new MaterialEntry(itemType, qty, owned, sources, craftable.Contains(itemType)));
 		}
 

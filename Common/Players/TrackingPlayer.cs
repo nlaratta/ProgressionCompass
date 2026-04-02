@@ -62,8 +62,9 @@ public class TrackingPlayer : ModPlayer
 		var config = ModContent.GetInstance<Common.CraftPathConfig>();
 		float chestRange = config?.ChestScanRange ?? InventoryScanner.DefaultChestRangeTiles;
 		var inventory = InventoryScanner.Scan(ChestsEnabled, chestRange);
+		var worldContext = global::ProgressionCompass.Content.Progression.WorldContext.Capture();
 
-		Tracking.Refresh(recipeIndex, sourceSystem, inventory, ChestsEnabled, RecipePreferences);
+		Tracking.Refresh(recipeIndex, sourceSystem, inventory, ChestsEnabled, RecipePreferences, worldContext);
 	}
 
 	/// <summary>

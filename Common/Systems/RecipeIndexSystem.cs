@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
+using ProgressionCompass.Content.Progression;
 
 namespace ProgressionCompass.Common.Systems;
 
@@ -66,6 +67,9 @@ public class RecipeIndexSystem : ModSystem
 			$"Indexed {Recipe.numRecipes} recipes: " +
 			$"{RecipesByResult.Count} craftable items, " +
 			$"{RecipesByIngredient.Count} ingredient types");
+
+		EvilAffiliationMap.Initialize();
+		Mod.Logger.Info($"Built evil affiliation map: {EvilAffiliationMap.Count} evil-affiliated items");
 	}
 
 	public override void Unload()
@@ -73,5 +77,6 @@ public class RecipeIndexSystem : ModSystem
 		RecipesByResult = null;
 		RecipesByIngredient = null;
 		CraftableItems = null;
+		EvilAffiliationMap.Unload();
 	}
 }

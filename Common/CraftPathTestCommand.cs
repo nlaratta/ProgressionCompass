@@ -5,6 +5,7 @@ using Terraria.ID;
 using Terraria.ModLoader;
 using ProgressionCompass.Common.Systems;
 using ProgressionCompass.Content.Graph;
+using ProgressionCompass.Content.Progression;
 
 namespace ProgressionCompass.Common;
 
@@ -87,7 +88,8 @@ public class CraftPathTestCommand : ModCommand
 		string itemName)
 	{
 		var inventory = InventoryScanner.Scan(false);
-		var resolver = new DependencyResolver(recipeIndex, sourceSystem);
+		var worldContext = WorldContext.Capture();
+		var resolver = new DependencyResolver(recipeIndex, sourceSystem, worldContext: worldContext);
 
 		var sw = System.Diagnostics.Stopwatch.StartNew();
 		var result = resolver.Resolve(itemId, 1, inventory, false);
@@ -113,7 +115,7 @@ public class CraftPathTestCommand : ModCommand
 	{
 		// Wood and Platform have a cycle: Wood -> Platform (at Work Bench) -> Wood (at Work Bench)
 		var inventory = new Dictionary<int, InventoryEntry>();
-		var resolver = new DependencyResolver(recipeIndex, sourceSystem);
+		var resolver = new DependencyResolver(recipeIndex, sourceSystem, worldContext: WorldContext.Capture());
 
 		var sw = System.Diagnostics.Stopwatch.StartNew();
 		var result = resolver.Resolve(ItemID.Wood, 100, inventory, false);

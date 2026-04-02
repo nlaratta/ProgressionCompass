@@ -18,8 +18,8 @@ public class UIDraggablePanel : UIPanel
 	private const float ResizeZone = 16f;
 	private const float PanelMinW = 450f;
 	private const float PanelMinH = 400f;
-	private const float PanelMaxW = 1200f;
-	private const float PanelMaxH = 900f;
+	private const float PanelMaxW = 1400f;
+	private const float PanelMaxH = 950f;
 
 	private bool _dragging;
 	private bool _resizing;

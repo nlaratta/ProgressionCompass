@@ -367,7 +367,8 @@ public class CraftPathState : UIState
 				savedFilter,
 				_cachedProgressResult?.Stats,
 				_cachedProgressResult?.NextBosses,
-				_cachedProgressResult?.Combinations);
+				_cachedProgressResult?.Combinations,
+				_cachedProgressResult?.WorldContext ?? default);
 
 			system.WindowState.OnAnalyzeItem -= OnDashboardAnalyze;
 			system.WindowState.OnAnalyzeItem += OnDashboardAnalyze;
@@ -414,6 +415,7 @@ public class CraftPathState : UIState
 		_lastInventory = InventoryScanner.Scan(_chestsEnabled, chestRange);
 		var inventoryCopy = new Dictionary<int, InventoryEntry>(_lastInventory);
 		bool includeChests = _chestsEnabled;
+		var worldContext = global::ProgressionCompass.Content.Progression.WorldContext.Capture();
 
 		_resolving = true;
 
@@ -421,7 +423,7 @@ public class CraftPathState : UIState
 		{
 			try
 			{
-				var result = _queue.ResolveAll(recipeIndex, sourceSystem, inventoryCopy, includeChests, _recipePreferences);
+				var result = _queue.ResolveAll(recipeIndex, sourceSystem, inventoryCopy, includeChests, _recipePreferences, worldContext);
 				_pendingResult = result;
 			}
 			catch (Exception ex)
@@ -449,6 +451,7 @@ public class CraftPathState : UIState
 		var invCopy = new Dictionary<int, InventoryEntry>(inventory);
 		bool includeChests = _chestsEnabled;
 		Tier tier = ProgressionTier.Detect();
+		var worldContext = global::ProgressionCompass.Content.Progression.WorldContext.Capture();
 		PlayerClass detected = PlayerClass.Mixed;
 		int armorDefense = 0;
 		try
@@ -465,7 +468,7 @@ public class CraftPathState : UIState
 
 		// Compute player stats + boss data on main thread (reads game state)
 		var playerStats = GearRecommender.ComputePlayerStats(invCopy, includeChests, armorDefense);
-		var nextBosses = BossDatabase.GetNextBosses(tier, sourceSystem);
+		var nextBosses = BossDatabase.GetNextBosses(tier, sourceSystem, worldContext);
 
 		_scanningProgress = true;
 
@@ -473,8 +476,8 @@ public class CraftPathState : UIState
 		{
 			try
 			{
-				var combos = CombinationScanner.Scan(recipeIndex, sourceSystem, invCopy, includeChests, tier);
-				var recs = GearRecommender.Recommend(armorDefense, PlayerClass.Mixed, tier, recipeIndex, sourceSystem, invCopy, includeChests);
+				var combos = CombinationScanner.Scan(recipeIndex, sourceSystem, invCopy, includeChests, tier, worldContext);
+				var recs = GearRecommender.Recommend(armorDefense, PlayerClass.Mixed, tier, recipeIndex, sourceSystem, invCopy, includeChests, worldContext);
 				_pendingProgressResult = new ProgressScanResult
 				{
 					Combinations = combos,
@@ -482,7 +485,8 @@ public class CraftPathState : UIState
 					CurrentTier = tier,
 					DetectedClass = detected,
 					Stats = playerStats,
-					NextBosses = nextBosses
+					NextBosses = nextBosses,
+					WorldContext = worldContext
 				};
 			}
 			catch (Exception ex)

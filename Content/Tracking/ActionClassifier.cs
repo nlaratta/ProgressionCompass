@@ -387,105 +387,9 @@ public static class ActionClassifier
 		return null;
 	}
 
-	private static string GetNPCLocation(int npcId)
-	{
-		string bestiary = GetNPCLocationFromBestiary(npcId);
-		if (bestiary != null) return bestiary;
-		return GetNPCLocationHeuristic(npcId);
-	}
+	private static string GetNPCLocation(int npcId) => BiomeMapper.GetNPCLocation(npcId);
 
-	private static string GetNPCLocationFromBestiary(int npcId)
-	{
-		if (npcId <= 0) return null;
-		try
-		{
-			var entry = Main.BestiaryDB?.FindEntryByNPCID(npcId);
-			if (entry?.Info == null) return null;
-
-			var biomes = new List<string>();
-			foreach (var element in entry.Info)
-			{
-				if (element is Terraria.GameContent.Bestiary.SpawnConditionBestiaryInfoElement spawnCond)
-				{
-					// Try localized name first, fall back to key parsing
-					string name = null;
-					try
-					{
-						string key = spawnCond.GetDisplayNameKey();
-						if (!string.IsNullOrEmpty(key))
-							name = Terraria.Localization.Language.GetTextValue(key);
-					}
-					catch { }
-
-					if (!string.IsNullOrEmpty(name) && name != "Unknown")
-					{
-						biomes.Add(name);
-						if (biomes.Count >= 2) break;
-					}
-				}
-			}
-
-			return biomes.Count > 0 ? string.Join(" / ", biomes) : null;
-		}
-		catch { return null; }
-	}
-
-	private static string GetNPCLocationHeuristic(int npcId)
-	{
-		if (npcId <= 0)
-			return "Surface";
-
-		try
-		{
-			var npc = new NPC();
-			npc.SetDefaults(npcId);
-
-			if (npc.boss)
-				return "Boss Fight";
-
-			string name = npc.FullName ?? npc.GivenOrTypeName ?? "";
-
-			if (ContainsAny(name, "Corrupt", "Eater", "Devourer", "Clinger"))
-				return "Underground Corruption";
-			if (ContainsAny(name, "Crimson", "Creeper", "Ichor", "Floaty"))
-				return "Underground Crimson";
-			if (ContainsAny(name, "Hallow", "Pixie", "Unicorn", "Gastropod", "Enchanted"))
-				return "Underground Hallow";
-			if (ContainsAny(name, "Jungle", "Hornet", "Moss", "Tortoise", "Arapaima"))
-				return "Underground Jungle";
-			if (ContainsAny(name, "Dungeon", "Skeleton", "Paladin", "Necromancer", "Ragged"))
-				return "Dungeon";
-			if (ContainsAny(name, "Ice", "Frost", "Viking", "Undead"))
-				return "Ice Biome";
-			if (ContainsAny(name, "Desert", "Mummy", "Lamia", "Sand"))
-				return "Desert";
-			if (ContainsAny(name, "Mushroom", "Fungi"))
-				return "Mushroom Biome";
-			if (ContainsAny(name, "Ocean", "Shark", "Crab"))
-				return "Ocean";
-			if (ContainsAny(name, "Pirate", "Goblin", "Martian", "Solar", "Nebula", "Vortex", "Stardust"))
-				return "Event";
-			if (ContainsAny(name, "Lava", "Hell", "Demon", "Bone Serpent", "Fire Imp"))
-				return "Underworld";
-
-			if (npc.defense > 30 || npc.lifeMax > 400)
-				return "Underground / Cavern";
-
-			return "Surface / Underground";
-		}
-		catch
-		{
-			return "Unknown Location";
-		}
-	}
-
-	private static bool ContainsAny(string text, params string[] keywords)
-	{
-		foreach (string kw in keywords)
-			if (text.Contains(kw, StringComparison.OrdinalIgnoreCase))
-				return true;
-		return false;
-	}
+	private static string GetEventTriggerHint(string eventDescription) => BiomeMapper.GetEventTriggerHint(eventDescription);
 
 	private static string GetBossSummonHint(int npcId)
 	{
@@ -533,23 +437,6 @@ public static class ActionClassifier
 			NPCID.Deerclops => "Use Deer Thing in Snow biome",
 			_ => "Check wiki for summoning requirements"
 		};
-	}
-
-	private static string GetEventTriggerHint(string eventDescription)
-	{
-		if (string.IsNullOrEmpty(eventDescription)) return null;
-		string lower = eventDescription.ToLowerInvariant();
-
-		if (lower.Contains("goblin")) return "Use Goblin Battle Standard, or random at 65% HP";
-		if (lower.Contains("pirate")) return "Use Pirate Map, or random in Hardmode Ocean";
-		if (lower.Contains("solar eclipse")) return "Use Solar Tablet, or random post-Mech Hardmode";
-		if (lower.Contains("blood moon")) return "Random event at night (1/9 chance)";
-		if (lower.Contains("frost moon")) return "Use Naughty Present at night";
-		if (lower.Contains("pumpkin moon")) return "Use Pumpkin Moon Medallion at night";
-		if (lower.Contains("martian")) return "Lure Martian Probe in Space layer";
-		if (lower.Contains("frost legion")) return "Use Snow Globe";
-		if (lower.Contains("old one")) return "Use Eternia Crystal at Eternia Crystal Stand";
-		return null;
 	}
 
 	private class MissingItem

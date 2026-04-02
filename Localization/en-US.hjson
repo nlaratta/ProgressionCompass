@@ -99,6 +99,13 @@ Mods: {
 			OwnedSummary: Owned: {0} types ({1}%)
 			MissingSummary: Missing: {0} types
 			Conditional: Requires: {0}
+			WhereToGo: Where to Go
+			FeedsUpgrades: Feeds {0} upgrades
+			FeedsOneUpgrade: Feeds 1 upgrade
+			NoLocations: No farmable locations — all upgrades are craftable!
+			WorldCorruption: Corruption World
+			WorldCrimson: Crimson World
+			WorldBothEvils: Both Evils (Drunk World)
 		}
 	}
 }

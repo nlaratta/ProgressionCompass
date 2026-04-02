@@ -87,7 +87,8 @@ public static class GearRecommender
 		RecipeIndexSystem recipeIndex,
 		ItemSourceSystem sourceSystem,
 		Dictionary<int, InventoryEntry> inventory,
-		bool includeChests)
+		bool includeChests,
+		WorldContext worldContext = default)
 	{
 		var stats = ComputePlayerStats(inventory, includeChests, currentArmorDefense);
 		int bestMeleeDmg = stats.BestMeleeDmg;
@@ -131,6 +132,10 @@ public static class GearRecommender
 
 			// Class filter — applies to weapons, armor, and class-specific accessories
 			if (!ClassDetector.ItemMatchesClass(item, classFilter))
+				continue;
+
+			// World evil filter: skip items affiliated with the wrong evil
+			if (!worldContext.IsAvailable(EvilAffiliationMap.Get(type)))
 				continue;
 
 			// Check if this item is available at the player's tier
@@ -299,7 +304,7 @@ public static class GearRecommender
 
 			if (!hasRecipe && sourceSystem != null)
 			{
-				allSources = sourceSystem.GetSources(type);
+				allSources = sourceSystem.GetSources(type, worldContext);
 				if (allSources.Count > 0)
 				{
 					var best = Graph.ItemSource.PickBest(allSources);

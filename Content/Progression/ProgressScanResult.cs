@@ -13,4 +13,5 @@ public class ProgressScanResult
 	public PlayerClass DetectedClass;
 	public PlayerStats Stats;
 	public List<BossInfo> NextBosses;
+	public WorldContext WorldContext;
 }

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ProgressionCompass.Common.Systems;
 using ProgressionCompass.Content.Graph;
+using ProgressionCompass.Content.Progression;
 
 namespace ProgressionCompass.Content.Tracking;
 
@@ -71,9 +72,10 @@ public class TrackingState
 		ItemSourceSystem sourceSystem,
 		Dictionary<int, InventoryEntry> inventory,
 		bool includeChests,
-		Dictionary<int, int> recipePreferences = null)
+		Dictionary<int, int> recipePreferences = null,
+		WorldContext worldContext = default)
 	{
-		var resolver = new DependencyResolver(recipeIndex, sourceSystem, recipePreferences);
+		var resolver = new DependencyResolver(recipeIndex, sourceSystem, recipePreferences, worldContext);
 
 		// Resolve each goal independently (don't share inventory — each goal
 		// shows its own full requirements, the action plan merges them)

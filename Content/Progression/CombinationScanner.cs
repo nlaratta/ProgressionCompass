@@ -59,7 +59,8 @@ public static class CombinationScanner
 		ItemSourceSystem sourceSystem,
 		Dictionary<int, InventoryEntry> inventory,
 		bool includeChests,
-		Tier currentTier)
+		Tier currentTier,
+		WorldContext worldContext = default)
 	{
 		var results = new List<CombinationResult>();
 		var ownedItemTypes = new HashSet<int>();
@@ -91,6 +92,10 @@ public static class CombinationScanner
 			if (!IsCombinationRecipe(recipe))
 				continue;
 
+			// Skip items affiliated with the wrong world evil
+			if (!worldContext.IsAvailable(EvilAffiliationMap.Get(outputType)))
+				continue;
+
 			var output = ContentSamples.ItemsByType.GetValueOrDefault(outputType);
 			if (output == null) continue;
 
@@ -109,7 +114,7 @@ public static class CombinationScanner
 		}
 
 		// Pass 2: Resolve each candidate to get completion % (expensive but targeted)
-		var resolver = new DependencyResolver(recipeIndex, sourceSystem);
+		var resolver = new DependencyResolver(recipeIndex, sourceSystem, worldContext: worldContext);
 
 		foreach (var (outputType, isAccessory, isWeapon, isArmor) in candidates)
 		{

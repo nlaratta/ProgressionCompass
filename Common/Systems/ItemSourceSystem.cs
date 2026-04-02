@@ -7,6 +7,7 @@ using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.UI;
 using ProgressionCompass.Content.Graph;
+using ProgressionCompass.Content.Progression;
 
 namespace ProgressionCompass.Common.Systems;
 
@@ -25,6 +26,57 @@ public class ItemSourceSystem : ModSystem
 
 		// Fallback: try to infer source from item properties
 		return InferSourceFromItem(itemType);
+	}
+
+	/// <summary>
+	/// Returns sources filtered for the current world context.
+	/// Removes sources from wrong-evil biomes/NPCs. Falls back to unfiltered
+	/// if all sources would be removed (prevents info loss).
+	/// </summary>
+	public List<ItemSource> GetSources(int itemType, WorldContext worldContext)
+	{
+		var all = GetSources(itemType);
+		if (all.Count == 0 || worldContext.HasBothEvils)
+			return all;
+
+		var filtered = new List<ItemSource>(all.Count);
+		foreach (var source in all)
+		{
+			if (IsSourceAvailableInWorld(source, worldContext))
+				filtered.Add(source);
+		}
+
+		return filtered.Count > 0 ? filtered : all;
+	}
+
+	private static bool IsSourceAvailableInWorld(ItemSource source, WorldContext worldContext)
+	{
+		string desc = source.Description;
+		if (string.IsNullOrEmpty(desc))
+			return true;
+
+		string lower = desc.ToLowerInvariant();
+
+		// Filter gathering sources for wrong evil
+		if (lower.Contains("corruption") && worldContext.IsCrimson)
+			return false;
+		if (lower.Contains("crimson") && !worldContext.IsCrimson)
+			return false;
+
+		// For NPC drops, check if the NPC is evil-affiliated by name
+		if (source.SourceEntityId > 0 &&
+			source.Type is ItemSourceType.NPCDrop or ItemSourceType.BossDrop or ItemSourceType.Event)
+		{
+			// Check NPC name for evil keywords
+			if (lower.Contains("eater") && worldContext.IsCrimson) return false;
+			if (lower.Contains("corruptor") && worldContext.IsCrimson) return false;
+			if (lower.Contains("brain of cthulhu") && !worldContext.IsCrimson) return false;
+			if (lower.Contains("creeper") && !worldContext.IsCrimson) return false;
+			if (lower.Contains("ichor") && !worldContext.IsCrimson) return false;
+			if (lower.Contains("cursed") && worldContext.IsCrimson) return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>
@@ -285,7 +337,7 @@ public class ItemSourceSystem : ModSystem
 		}
 	}
 
-	internal static string GetNPCEventName(int npcId)
+	public static string GetNPCEventName(int npcId)
 	{
 		if (npcId < 0) return null;
 		try
@@ -418,20 +470,7 @@ public class ItemSourceSystem : ModSystem
 		return $"{copper}c";
 	}
 
-	private static string InferCrateBiome(string crateName)
-	{
-		string lower = (crateName ?? "").ToLowerInvariant();
-		if (lower.Contains("jungle")) return "Jungle";
-		if (lower.Contains("frozen") || lower.Contains("boreal")) return "Snow biome";
-		if (lower.Contains("ocean") || lower.Contains("seaside")) return "Ocean";
-		if (lower.Contains("sky") || lower.Contains("azure")) return "Sky islands";
-		if (lower.Contains("corrupt")) return "Corruption";
-		if (lower.Contains("crimson") || lower.Contains("hematic")) return "Crimson";
-		if (lower.Contains("hallow") || lower.Contains("divine")) return "Hallow";
-		if (lower.Contains("oasis") || lower.Contains("desert") || lower.Contains("mirage")) return "Desert";
-		if (lower.Contains("obsidian") || lower.Contains("hellstone")) return "Underworld";
-		return null;
-	}
+	private static string InferCrateBiome(string crateName) => global::ProgressionCompass.Content.Tracking.BiomeMapper.InferCrateBiome(crateName);
 
 	/// <summary>
 	/// Indexes drops from treasure bags, fishing crates, and other grab-bag items

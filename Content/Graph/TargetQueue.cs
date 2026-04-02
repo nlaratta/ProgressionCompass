@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ProgressionCompass.Common.Systems;
+using ProgressionCompass.Content.Progression;
 
 namespace ProgressionCompass.Content.Graph;
 
@@ -67,11 +68,12 @@ public class TargetQueue
 		ItemSourceSystem sourceSystem,
 		Dictionary<int, InventoryEntry> inventory,
 		bool includeChests,
-		Dictionary<int, int> recipePreferences = null)
+		Dictionary<int, int> recipePreferences = null,
+		WorldContext worldContext = default)
 	{
 		_cache.CheckInventory(inventory, includeChests);
 
-		var resolver = new DependencyResolver(recipeIndex, sourceSystem, recipePreferences);
+		var resolver = new DependencyResolver(recipeIndex, sourceSystem, recipePreferences, worldContext);
 		var perTarget = new List<ResolverResult>();
 
 		// Shared mutable inventory — each resolve consumes from what's left
