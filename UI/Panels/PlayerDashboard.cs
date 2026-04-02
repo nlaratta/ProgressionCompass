@@ -83,6 +83,24 @@ public class PlayerDashboard : UIElement
 		}
 	}
 
+	/// <summary>
+	/// For small recipes (≤2 ingredients), checks if the player owns at least one
+	/// equipment ingredient (weapon/armor/accessory) — not just a common material.
+	/// </summary>
+	private static bool OwnsEquipmentIngredient(UpgradeItem item)
+	{
+		if (item.Ingredients == null) return false;
+		foreach (var (ingType, needed, owned) in item.Ingredients)
+		{
+			if (owned <= 0) continue;
+			var ing = Terraria.ID.ContentSamples.ItemsByType.GetValueOrDefault(ingType);
+			if (ing == null) continue;
+			if (ing.accessory || ing.damage > 0 || ing.headSlot >= 0 || ing.bodySlot >= 0 || ing.legSlot >= 0)
+				return true;
+		}
+		return false;
+	}
+
 	private bool IsSectionCollapsed(string name) => _collapsed.GetValueOrDefault(name, false);
 	private void ToggleSection(string name)
 	{
@@ -135,7 +153,11 @@ public class PlayerDashboard : UIElement
 	{
 		if (_mergedItems == null) return;
 
-		var almost = _mergedItems.FindAll(i => i.Proximity == Proximity.AlmostReady);
+		var almost = _mergedItems.FindAll(i =>
+			i.Proximity == Proximity.AlmostReady
+			// For small recipes (≤2 leaves), only show if player owns an
+			// equipment ingredient — owning just a common material isn't meaningful
+			&& (i.LeafMaterialsTotal >= 3 || OwnsEquipmentIngredient(i)));
 		if (almost.Count == 0) return;
 
 		almost.Sort((a, b) => b.CompletionPercent.CompareTo(a.CompletionPercent));

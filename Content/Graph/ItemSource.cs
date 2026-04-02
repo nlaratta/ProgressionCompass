@@ -37,7 +37,7 @@ public record ItemSource(
 		ItemSourceType.NPCDrop => DropRate >= 0.1f ? 80 : 50,
 		ItemSourceType.Gathering => 70,
 		ItemSourceType.Event => 45,
-		ItemSourceType.Shimmer => 65,
+		ItemSourceType.Shimmer => 25,
 		ItemSourceType.Fishing => 40,
 		ItemSourceType.ChestLoot => 30,
 		_ => 0
