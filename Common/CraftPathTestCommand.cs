@@ -89,7 +89,8 @@ public class CraftPathTestCommand : ModCommand
 	{
 		var inventory = InventoryScanner.Scan(false);
 		var worldContext = WorldContext.Capture();
-		var resolver = new DependencyResolver(recipeIndex, sourceSystem, worldContext: worldContext);
+		var tier = ProgressionTier.Detect();
+		var resolver = new DependencyResolver(recipeIndex, sourceSystem, worldContext: worldContext, currentTier: tier);
 
 		var sw = System.Diagnostics.Stopwatch.StartNew();
 		var result = resolver.Resolve(itemId, 1, inventory, false);

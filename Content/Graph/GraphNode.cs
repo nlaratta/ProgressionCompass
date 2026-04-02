@@ -74,3 +74,14 @@ public record GroupNode(int GroupId, int Quantity, GraphNode ChosenItem)
 {
 	public override int AcquisitionCost => ChosenItem.AcquisitionCost;
 }
+
+/// <summary>
+/// Item is obtained by shimmering another item. SourceItem is the input to shimmer.
+/// Used for cross-evil transmutations (e.g., Tissue Sample → Shadow Scale in Crimson worlds).
+/// </summary>
+public record ShimmerNode(int ItemType, int Quantity, int SourceItemType, GraphNode SourceItem)
+	: GraphNode(ItemType, Quantity)
+{
+	/// <summary>Shimmer cost = source item cost + small penalty for shimmer pool access.</summary>
+	public override int AcquisitionCost => SourceItem.AcquisitionCost + 2;
+}

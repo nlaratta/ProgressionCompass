@@ -22,14 +22,17 @@ public class DependencyResolver
 	private readonly ItemSourceSystem _sourceSystem;
 	private readonly Dictionary<int, int> _recipePreferences;
 	private readonly WorldContext _worldContext;
+	private readonly Progression.Tier _currentTier;
 
 	public DependencyResolver(RecipeIndexSystem recipeIndex, ItemSourceSystem sourceSystem,
-		Dictionary<int, int> recipePreferences = null, WorldContext worldContext = default)
+		Dictionary<int, int> recipePreferences = null, WorldContext worldContext = default,
+		Progression.Tier currentTier = Progression.Tier.PreBoss)
 	{
 		_recipeIndex = recipeIndex;
 		_sourceSystem = sourceSystem;
 		_recipePreferences = recipePreferences ?? [];
 		_worldContext = worldContext;
+		_currentTier = currentTier;
 	}
 
 	/// <summary>
@@ -109,7 +112,11 @@ public class DependencyResolver
 		// Step 2: Look up recipes
 		if (!_recipeIndex.RecipesByResult.TryGetValue(itemType, out var recipes) || recipes.Count == 0)
 		{
-			// Not craftable — restore what we consumed and return AcquireNode
+			// Not craftable — try shimmer as alternative
+			var shimmerFallback = TryShimmerFallback(itemType, quantity, available, visited, depth);
+			if (shimmerFallback != null)
+				return shimmerFallback;
+
 			if (usedFromInventory > 0)
 				available[itemType] = usedFromInventory;
 			return MakeAcquireNode(itemType, quantity);
@@ -198,8 +205,23 @@ public class DependencyResolver
 
 		if (candidates.Count > 0)
 		{
-			// Sort by acquisition cost ascending
-			candidates.Sort((a, b) => a.node.AcquisitionCost.CompareTo(b.node.AcquisitionCost));
+			// Sort by effective cost: acquisition cost + penalty for unmet recipe conditions.
+			// Recipes requiring conditions above the player's current tier are deprioritized
+			// but still shown as alternatives.
+			candidates.Sort((a, b) =>
+			{
+				int costA = a.node.AcquisitionCost + GetConditionPenalty(a.node.Recipe);
+				int costB = b.node.AcquisitionCost + GetConditionPenalty(b.node.Recipe);
+				int cmp = costA.CompareTo(costB);
+				if (cmp != 0) return cmp;
+				// Tiebreak: prefer world-evil-matching recipe
+				var evilA = EvilAffiliationMap.GetRecipeAffiliation(a.node.Recipe);
+				var evilB = EvilAffiliationMap.GetRecipeAffiliation(b.node.Recipe);
+				bool matchA = _worldContext.IsAvailable(evilA);
+				bool matchB = _worldContext.IsAvailable(evilB);
+				if (matchA != matchB) return matchA ? -1 : 1;
+				return 0;
+			});
 
 			// Apply user's recipe preference: find candidate matching the preferred recipe index
 			int preferredIdx = 0;
@@ -232,7 +254,16 @@ public class DependencyResolver
 			return best.node;
 		}
 
-		// No recipe worked — treat as raw material
+		// No recipe worked — try shimmer as a fallback path
+		var shimmerNode = TryShimmerFallback(itemType, quantity, available, visited, depth);
+		if (shimmerNode != null)
+		{
+			if (usedFromInventory > 0)
+				available[itemType] = 0; // Consumed from inventory
+			return shimmerNode;
+		}
+
+		// Nothing worked — treat as raw material
 		if (usedFromInventory > 0)
 			available[itemType] = usedFromInventory;
 		return MakeAcquireNode(itemType, quantity);
@@ -296,6 +327,77 @@ public class DependencyResolver
 		return new AcquireNode(itemType, quantity, sources);
 	}
 
+	/// <summary>
+	/// Attempts to resolve an item via shimmer transformation as a fallback
+	/// when no recipe is viable. Enables cross-evil paths (e.g., in a Crimson world,
+	/// Shadow Scale can be obtained by shimmering Tissue Sample).
+	/// </summary>
+	private ShimmerNode TryShimmerFallback(
+		int itemType,
+		int quantity,
+		Dictionary<int, int> available,
+		HashSet<int> visited,
+		int depth)
+	{
+		if (depth > MaxDepth - 2) // Reserve depth for shimmer + source resolution
+			return null;
+
+		var allSources = _sourceSystem?.GetSources(itemType) ?? [];
+		foreach (var source in allSources)
+		{
+			if (source.Type != ItemSourceType.Shimmer || source.SourceEntityId <= 0)
+				continue;
+
+			int sourceItemType = source.SourceEntityId;
+
+			// Prevent shimmer cycles (A shimmers into B, B shimmers into A)
+			if (visited.Contains(-sourceItemType)) // Use negative IDs for shimmer cycle detection
+				continue;
+
+			// Check if the source item is obtainable in this world
+			if (!_worldContext.IsAvailable(EvilAffiliationMap.Get(sourceItemType)))
+				continue;
+
+			// Try resolving the source item
+			var snapshot = new Dictionary<int, int>(available);
+			visited.Add(-sourceItemType);
+
+			var sourceNode = ResolveItem(sourceItemType, quantity, available, visited, depth + 1);
+
+			visited.Remove(-sourceItemType);
+
+			// If the source resolved to a pure AcquireNode with no sources, it's a dead end
+			if (sourceNode is AcquireNode acq && acq.Sources.Count == 0)
+			{
+				foreach (var kv in snapshot)
+					available[kv.Key] = kv.Value;
+				continue;
+			}
+
+			return new ShimmerNode(itemType, quantity, sourceItemType, sourceNode);
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Returns a cost penalty for recipes with conditions above the player's current tier.
+	/// This deprioritizes recipes the player can't currently use without blocking them entirely.
+	/// </summary>
+	private int GetConditionPenalty(Recipe recipe)
+	{
+		if (recipe.Conditions.Count == 0)
+			return 0;
+
+		var recipeTier = Progression.ProgressionTier.EstimateRecipeTier(recipe);
+		if (recipeTier <= _currentTier)
+			return 0; // Conditions are at or below player's tier — likely met
+
+		// Penalty scales with how far above the player's tier the recipe is
+		int tierGap = (int)recipeTier - (int)_currentTier;
+		return tierGap * 50; // 50 per tier above current
+	}
+
 	// --- Tree flattening ---
 
 	/// <summary>
@@ -353,6 +455,11 @@ public class DependencyResolver
 			case GroupNode group:
 				CollectLeafMaterials(group.ChosenItem, needed, craftable);
 				break;
+			case ShimmerNode shimmer:
+				// The shimmer output is "craftable" (obtainable via shimmer)
+				craftable.Add(shimmer.ItemType);
+				CollectLeafMaterials(shimmer.SourceItem, needed, craftable);
+				break;
 		}
 	}
 
@@ -376,6 +483,29 @@ public class DependencyResolver
 		Dictionary<int, InventoryEntry> inventory,
 		bool includeChests)
 	{
+		if (node is ShimmerNode shimmer)
+		{
+			// Recurse into the source item first
+			CollectCraftSteps(shimmer.SourceItem, steps, craftedItems, inventory, includeChests);
+
+			int stepNum = steps.Count + 1;
+			var shimmerInput = new CraftStepInput(
+				shimmer.SourceItemType, shimmer.Quantity,
+				craftedItems.ContainsKey(shimmer.SourceItemType)
+					? CraftStepInputSource.FromPreviousStep
+					: CraftStepInputSource.NeedToAcquire,
+				craftedItems.GetValueOrDefault(shimmer.SourceItemType, 0) > 0
+					? craftedItems[shimmer.SourceItemType]
+					: null,
+				null, null);
+
+			steps.Add(new CraftStep(
+				stepNum, shimmer.ItemType, shimmer.Quantity,
+				shimmer.Quantity, [], [shimmerInput], "Shimmer transformation"));
+			craftedItems[shimmer.ItemType] = stepNum;
+			return;
+		}
+
 		if (node is not CraftNode craft)
 		{
 			if (node is GroupNode group)

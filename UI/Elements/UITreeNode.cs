@@ -134,6 +134,11 @@ public class UITreeRow : UIElement
 				tagColor = new Color(100, 220, 255);
 				tagBg = new Color(20, 50, 70);
 				break;
+			case ShimmerNode:
+				tag = "SHIMMER";
+				tagColor = new Color(200, 160, 255);
+				tagBg = new Color(50, 30, 70);
+				break;
 			default:
 				tag = "?";
 				tagColor = Color.Gray;
@@ -200,6 +205,16 @@ public class UITreeRow : UIElement
 			Color sourceColor = UIHelper.GetSourceColor(bestSrc.Type);
 			Utils.DrawBorderString(spriteBatch, sourceDesc,
 				new Vector2(afterLabel, textY + 2f), sourceColor, 0.6f);
+		}
+
+		// Shimmer info
+		if (_node is ShimmerNode shimmerNode)
+		{
+			var sourceItem = new Item();
+			sourceItem.SetDefaults(shimmerNode.SourceItemType);
+			string shimmerText = $"Shimmer: {sourceItem.Name} -> {_displayItem.Name}";
+			Utils.DrawBorderString(spriteBatch, shimmerText,
+				new Vector2(afterLabel, textY + 2f), new Color(160, 120, 255), 0.6f);
 		}
 	}
 

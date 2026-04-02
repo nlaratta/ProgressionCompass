@@ -69,11 +69,12 @@ public class TargetQueue
 		Dictionary<int, InventoryEntry> inventory,
 		bool includeChests,
 		Dictionary<int, int> recipePreferences = null,
-		WorldContext worldContext = default)
+		WorldContext worldContext = default,
+		global::ProgressionCompass.Content.Progression.Tier currentTier = global::ProgressionCompass.Content.Progression.Tier.PreBoss)
 	{
 		_cache.CheckInventory(inventory, includeChests);
 
-		var resolver = new DependencyResolver(recipeIndex, sourceSystem, recipePreferences, worldContext);
+		var resolver = new DependencyResolver(recipeIndex, sourceSystem, recipePreferences, worldContext, currentTier);
 		var perTarget = new List<ResolverResult>();
 
 		// Shared mutable inventory — each resolve consumes from what's left

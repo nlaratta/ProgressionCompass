@@ -73,9 +73,10 @@ public class TrackingState
 		Dictionary<int, InventoryEntry> inventory,
 		bool includeChests,
 		Dictionary<int, int> recipePreferences = null,
-		WorldContext worldContext = default)
+		WorldContext worldContext = default,
+		Progression.Tier currentTier = Progression.Tier.PreBoss)
 	{
-		var resolver = new DependencyResolver(recipeIndex, sourceSystem, recipePreferences, worldContext);
+		var resolver = new DependencyResolver(recipeIndex, sourceSystem, recipePreferences, worldContext, currentTier);
 
 		// Resolve each goal independently (don't share inventory — each goal
 		// shows its own full requirements, the action plan merges them)

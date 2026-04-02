@@ -121,6 +121,7 @@ public class DependencyTreePanel : UIElement
 		{
 			CraftNode craft => craft.Ingredients,
 			GroupNode group => [group.ChosenItem],
+			ShimmerNode shimmer => [shimmer.SourceItem],
 			_ => []
 		};
 	}

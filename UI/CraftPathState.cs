@@ -418,6 +418,7 @@ public class CraftPathState : UIState
 		bool includeChests = _chestsEnabled;
 		var worldContext = global::ProgressionCompass.Content.Progression.WorldContext.Capture();
 		_lastWorldContext = worldContext;
+		var tier = global::ProgressionCompass.Content.Progression.ProgressionTier.Detect();
 
 		_resolving = true;
 
@@ -425,7 +426,7 @@ public class CraftPathState : UIState
 		{
 			try
 			{
-				var result = _queue.ResolveAll(recipeIndex, sourceSystem, inventoryCopy, includeChests, _recipePreferences, worldContext);
+				var result = _queue.ResolveAll(recipeIndex, sourceSystem, inventoryCopy, includeChests, _recipePreferences, worldContext, tier);
 				_pendingResult = result;
 			}
 			catch (Exception ex)

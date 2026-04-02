@@ -114,7 +114,7 @@ public static class CombinationScanner
 		}
 
 		// Pass 2: Resolve each candidate to get completion % (expensive but targeted)
-		var resolver = new DependencyResolver(recipeIndex, sourceSystem, worldContext: worldContext);
+		var resolver = new DependencyResolver(recipeIndex, sourceSystem, worldContext: worldContext, currentTier: currentTier);
 
 		foreach (var (outputType, isAccessory, isWeapon, isArmor) in candidates)
 		{
