@@ -50,6 +50,9 @@ public readonly record struct WorldContext
 	public bool IsCorruption => !IsCrimson;
 	public bool HardmodeOresKnown => CobaltTier != -1;
 
+	/// <summary>True if this context was actually captured (not default/zero).</summary>
+	public bool IsValid => CopperTier != 0 || IsCrimson || HasBothEvils;
+
 	/// <summary>Captures world state on the main thread. Call ONLY from the main thread.</summary>
 	public static WorldContext Capture()
 	{
@@ -86,8 +89,9 @@ public readonly record struct WorldContext
 	public bool IsAvailable(EvilAffiliation affiliation) => affiliation switch
 	{
 		EvilAffiliation.Neutral => true,
-		EvilAffiliation.Corruption => HasBothEvils || IsCorruption,
-		EvilAffiliation.Crimson => HasBothEvils || IsCrimson,
+		// If context wasn't properly captured, don't filter anything
+		EvilAffiliation.Corruption => !IsValid || HasBothEvils || IsCorruption,
+		EvilAffiliation.Crimson => !IsValid || HasBothEvils || IsCrimson,
 		_ => true
 	};
 
@@ -100,6 +104,9 @@ public readonly record struct WorldContext
 	/// </summary>
 	public bool IsPreferredOreItem(int itemType)
 	{
+		if (!IsValid)
+			return true; // Context not captured — no preference
+
 		if (!_orePairs.TryGetValue(itemType, out var pair))
 			return true; // Not an ore pair item — no preference
 

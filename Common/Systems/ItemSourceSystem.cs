@@ -36,7 +36,7 @@ public class ItemSourceSystem : ModSystem
 	public List<ItemSource> GetSources(int itemType, WorldContext worldContext)
 	{
 		var all = GetSources(itemType);
-		if (all.Count == 0 || worldContext.HasBothEvils)
+		if (all.Count == 0 || worldContext.HasBothEvils || !worldContext.IsValid)
 			return all;
 
 		var filtered = new List<ItemSource>(all.Count);
@@ -155,8 +155,15 @@ public class ItemSourceSystem : ModSystem
 
 		Mod.Logger.Info($"Indexed item sources (drops/gathering/shimmer) for {_sourcesByItem.Count} items");
 
-		AccessoryEffectAnalyzer.Initialize();
-		Mod.Logger.Info($"Analyzed {AccessoryEffectAnalyzer.Count} accessory effects via differential approach");
+		try
+		{
+			AccessoryEffectAnalyzer.Initialize();
+			Mod.Logger.Info($"Analyzed {AccessoryEffectAnalyzer.Count} accessory effects via differential approach");
+		}
+		catch (Exception ex)
+		{
+			Mod.Logger.Warn($"Accessory effect analysis failed (non-fatal): {ex.Message}");
+		}
 	}
 
 	public override void PostAddRecipes()
