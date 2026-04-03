@@ -141,9 +141,9 @@ public static class UpgradeItemBuilder
     /// </summary>
     public static Proximity ProximityFromCompletion(float completionPercent)
     {
-        if (completionPercent >= 100f) return Proximity.CraftableNow;
-        if (completionPercent >= 80f) return Proximity.AlmostReady;
-        if (completionPercent >= 40f) return Proximity.NeedsWork;
+        if (completionPercent >= ScoringConstants.CraftableNowThreshold) return Proximity.CraftableNow;
+        if (completionPercent >= ScoringConstants.AlmostReadyThreshold) return Proximity.AlmostReady;
+        if (completionPercent >= ScoringConstants.NeedsWorkThreshold) return Proximity.NeedsWork;
         return Proximity.FarAway;
     }
 

@@ -432,26 +432,22 @@ public class DependencyResolver
 		{
 			int cost = source.Type switch
 			{
-				// Gathering is free — mine, chop, dig, collect
-				ItemSourceType.Gathering => 0,
-
-				// Shop: free if NPC is available, expensive if not
-				ItemSourceType.NPCShop => _worldContext.IsNpcAvailable(source.SourceEntityId) ? 1 : 20,
-
-				// Drops: cost scales inversely with drop rate
-				ItemSourceType.NPCDrop => source.DropRate >= 0.1f ? 3 : source.DropRate >= 0.02f ? 6 : 10,
-				ItemSourceType.BossDrop => 8,
-				ItemSourceType.Event => 10,
-				ItemSourceType.BagDrop => 8,
-
-				// Exploration: moderate effort
-				ItemSourceType.Fishing => 8,
-				ItemSourceType.ChestLoot => 12,
-
-				// Shimmer: handled separately via TryShimmerFallback
+				ItemSourceType.Gathering => Progression.ScoringConstants.AcquireCostGathering,
+				ItemSourceType.NPCShop => _worldContext.IsNpcAvailable(source.SourceEntityId)
+					? Progression.ScoringConstants.AcquireCostShopAvailable
+					: Progression.ScoringConstants.AcquireCostShopUnavailable,
+				ItemSourceType.NPCDrop => source.DropRate >= 0.1f
+					? Progression.ScoringConstants.AcquireCostCommonDrop
+					: source.DropRate >= 0.02f
+						? Progression.ScoringConstants.AcquireCostUncommonDrop
+						: Progression.ScoringConstants.AcquireCostRareDrop,
+				ItemSourceType.BossDrop => Progression.ScoringConstants.AcquireCostBoss,
+				ItemSourceType.Event => Progression.ScoringConstants.AcquireCostEvent,
+				ItemSourceType.BagDrop => Progression.ScoringConstants.AcquireCostBoss,
+				ItemSourceType.Fishing => Progression.ScoringConstants.AcquireCostFishing,
+				ItemSourceType.ChestLoot => Progression.ScoringConstants.AcquireCostChest,
 				ItemSourceType.Shimmer => int.MaxValue,
-
-				_ => 15
+				_ => Progression.ScoringConstants.AcquireCostOther
 			};
 
 			if (cost < bestCost)
@@ -473,42 +469,7 @@ public class DependencyResolver
 		return !_worldContext.IsAvailable(affiliation);
 	}
 
-	/// <summary>
-	/// Checks if shimmer decrafting is available for an item based on boss progression.
-	/// Post-Skeletron recipes (containing Bone) and Post-Golem recipes (containing Beetle Husk)
-	/// are locked until those bosses are defeated.
-	/// </summary>
-	private bool IsDecraftingAvailable(int itemType)
-	{
-		try
-		{
-			var indices = ItemID.Sets.CraftingRecipeIndices[itemType];
-			if (indices == null) return true;
 
-			foreach (int idx in indices)
-			{
-				if (idx < 0 || idx >= Recipe.numRecipes) continue;
-				var recipe = Main.recipe[idx];
-				if (recipe == null || recipe.DecraftDisabled) continue;
-
-				// Check for Post-Skeletron lock (recipes containing Bone, item 154)
-				bool needsSkeletron = false;
-				bool needsGolem = false;
-				foreach (var ing in recipe.requiredItem)
-				{
-					if (ing.type == ItemID.Bone) needsSkeletron = true;
-					if (ing.type == ItemID.BeetleHusk) needsGolem = true;
-				}
-
-				if (needsSkeletron && !_worldContext.DownedSkeletron) return false;
-				if (needsGolem && !_worldContext.DownedGolem) return false;
-
-				return true; // First valid recipe found
-			}
-		}
-		catch { }
-		return true; // Default to available if check fails
-	}
 
 	/// <summary>
 	/// Returns a cost penalty for recipes with conditions above the player's current tier.
@@ -525,7 +486,7 @@ public class DependencyResolver
 
 		// Penalty scales with how far above the player's tier the recipe is
 		int tierGap = (int)recipeTier - (int)_currentTier;
-		return tierGap * 50; // 50 per tier above current
+		return tierGap * Progression.ScoringConstants.ConditionTierPenalty;
 	}
 
 	/// <summary>

@@ -43,7 +43,7 @@ public readonly record struct WorldContext
 	public bool IsExpert { get; init; }
 	public bool IsMaster { get; init; }
 
-	// Boss progression (for shimmer decrafting locks)
+	// Boss progression (for future shimmer decrafting locks)
 	public bool DownedSkeletron { get; init; }
 	public bool DownedGolem { get; init; }
 

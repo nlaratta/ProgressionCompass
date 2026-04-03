@@ -206,17 +206,17 @@ public static class SourcePriorityAnalyzer
 			float proximity = c.UpgradeProximity switch
 			{
 				Proximity.CraftableNow => 0f,
-				Proximity.AlmostReady => 10f,
-				Proximity.NeedsWork => 4f,
-				Proximity.FarAway => 1f,
-				_ => 1f
+				Proximity.AlmostReady => ScoringConstants.ProximityWeightAlmostReady,
+				Proximity.NeedsWork => ScoringConstants.ProximityWeightNeedsWork,
+				Proximity.FarAway => ScoringConstants.ProximityWeightFarAway,
+				_ => ScoringConstants.ProximityWeightFarAway
 			};
 
 			float lastPiece = c.MissingCountForUpgrade switch
 			{
-				1 => 3.0f,
-				2 => 2.0f,
-				3 => 1.5f,
+				1 => ScoringConstants.LastPieceBonus1,
+				2 => ScoringConstants.LastPieceBonus2,
+				3 => ScoringConstants.LastPieceBonus3,
 				_ => 1.0f
 			};
 
@@ -228,17 +228,17 @@ public static class SourcePriorityAnalyzer
 
 	private static float GetAccessibilityMultiplier(ItemSource source)
 	{
-		if (source.Type == ItemSourceType.NPCShop) return 2.0f;
-		if (source.Type == ItemSourceType.Gathering) return 1.5f;
-		if (source.Type == ItemSourceType.Fishing) return 0.7f;
-		if (source.Type == ItemSourceType.ChestLoot) return 0.4f;
-		if (source.Type == ItemSourceType.Shimmer) return 0.6f;
+		if (source.Type == ItemSourceType.NPCShop) return ScoringConstants.AccessibilityShop;
+		if (source.Type == ItemSourceType.Gathering) return ScoringConstants.AccessibilityGathering;
+		if (source.Type == ItemSourceType.Fishing) return ScoringConstants.AccessibilityFishing;
+		if (source.Type == ItemSourceType.ChestLoot) return ScoringConstants.AccessibilityChestLoot;
+		if (source.Type == ItemSourceType.Shimmer) return ScoringConstants.AccessibilityShimmer;
 
 		// Drop-rate based for NPC/Boss/Event drops
-		if (source.DropRate >= 1.0f) return 1.8f;
-		if (source.DropRate >= 0.10f) return 1.2f;
-		if (source.DropRate >= 0.02f) return 0.8f;
-		return 0.5f; // Rare or unknown rate
+		if (source.DropRate >= 1.0f) return ScoringConstants.AccessibilityGuaranteedDrop;
+		if (source.DropRate >= 0.10f) return ScoringConstants.AccessibilityCommonDrop;
+		if (source.DropRate >= 0.02f) return ScoringConstants.AccessibilityUncommonDrop;
+		return ScoringConstants.AccessibilityRareDrop;
 	}
 
 	// ── Classification ──────────────────────────────────────────

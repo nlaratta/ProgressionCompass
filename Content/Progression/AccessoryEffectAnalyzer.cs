@@ -236,36 +236,36 @@ public static class AccessoryEffectAnalyzer
 		int bonusMana = test.statManaMax2 - baseline.statManaMax2;
 		int bonusLife = test.statLifeMax2 - baseline.statLifeMax2;
 
-		// Compute scores
+		// Compute scores using centralized weights
 		float combat =
-			(noKB ? 15f : 0f) +
-			endurance * 100f +
-			armorPen * 3f +
-			dmgBoost * 200f +
-			critBoost * 150f +
-			(dodge ? 20f : 0f) +
-			(kbBoost ? 5f : 0f) +
-			(autoReuse ? 8f : 0f) +
-			(quiver ? 12f : 0f) +
+			(noKB ? ScoringConstants.AccKnockbackImmunity : 0f) +
+			endurance * ScoringConstants.AccDamageReductionWeight +
+			armorPen * ScoringConstants.AccArmorPenWeight +
+			dmgBoost * ScoringConstants.AccAllDamageWeight +
+			critBoost * ScoringConstants.AccAllCritWeight +
+			(dodge ? ScoringConstants.AccDodgeChance : 0f) +
+			(kbBoost ? ScoringConstants.AccKnockbackBoost : 0f) +
+			(autoReuse ? ScoringConstants.AccAutoReuse : 0f) +
+			(quiver ? ScoringConstants.AccMagicQuiver : 0f) +
 			Math.Abs(aggro) * 0.05f;
 
 		float mobility =
-			runSpeed * 3f +
-			rocketBoots * 15f +
-			dash * 20f +
-			(jumpBoost ? 10f : 0f) +
-			jumpSpeed * 5f +
-			(noFall ? 8f : 0f) +
-			moveSpeed * 10f +
-			(swim ? 5f : 0f) +
-			(waterWalk ? 5f : 0f) +
-			(iceSkate ? 3f : 0f);
+			runSpeed * ScoringConstants.AccRunSpeedWeight +
+			rocketBoots * ScoringConstants.AccRocketBootsTier +
+			dash * ScoringConstants.AccDashType +
+			(jumpBoost ? ScoringConstants.AccJumpBoost : 0f) +
+			jumpSpeed * ScoringConstants.AccJumpSpeedWeight +
+			(noFall ? ScoringConstants.AccNoFallDamage : 0f) +
+			moveSpeed * ScoringConstants.AccMoveSpeedWeight +
+			(swim ? ScoringConstants.AccSwimming : 0f) +
+			(waterWalk ? ScoringConstants.AccWaterWalk : 0f) +
+			(iceSkate ? ScoringConstants.AccIceSkate : 0f);
 
 		float survival =
-			(lavaImmune ? 15f : 0f) +
-			(longInv ? 12f : 0f) +
-			bonusMana * 0.3f +
-			bonusLife * 2f;
+			(lavaImmune ? ScoringConstants.AccLavaImmune : 0f) +
+			(longInv ? ScoringConstants.AccExtendedIFrames : 0f) +
+			bonusMana * ScoringConstants.AccBonusManaWeight +
+			bonusLife * ScoringConstants.AccBonusLifeWeight;
 
 		float total = combat + mobility + survival;
 

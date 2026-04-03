@@ -83,5 +83,5 @@ public record ShimmerNode(int ItemType, int Quantity, int SourceItemType, GraphN
 	: GraphNode(ItemType, Quantity)
 {
 	/// <summary>Shimmer cost = source item cost + small penalty for shimmer pool access.</summary>
-	public override int AcquisitionCost => SourceItem.AcquisitionCost + 2;
+	public override int AcquisitionCost => SourceItem.AcquisitionCost + Progression.ScoringConstants.ShimmerAccessCost;
 }
