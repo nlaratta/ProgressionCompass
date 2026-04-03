@@ -5,6 +5,7 @@ using Terraria;
 using Terraria.ID;
 using ProgressionCompass.Common.Systems;
 using ProgressionCompass.Content.Graph;
+using ProgressionCompass.Content.Progression;
 
 namespace ProgressionCompass.Content.Tracking;
 
@@ -19,7 +20,8 @@ public static class ActionClassifier
 		IReadOnlyList<PinnedGoal> goals,
 		Dictionary<int, InventoryEntry> inventory,
 		bool includeChests,
-		ItemSourceSystem sourceSystem)
+		ItemSourceSystem sourceSystem,
+		EffortAnalyzer effortAnalyzer = null)
 	{
 		// Merge all missing materials across all goals
 		var allMissing = new Dictionary<int, MergedNeed>();
@@ -188,22 +190,36 @@ public static class ActionClassifier
 			});
 		}
 
-		// Farm groups sorted by most items obtainable (best use of time)
-		foreach (var (location, items) in farmByLocation.OrderByDescending(kv => kv.Value.Count))
+		// Farm groups sorted by lowest total effort (easiest locations first)
+		foreach (var (location, items) in farmByLocation.OrderBy(kv =>
 		{
+			if (effortAnalyzer == null) return -kv.Value.Count; // fallback: most items
+			float totalEffort = 0f;
+			foreach (var item in kv.Value)
+				totalEffort += effortAnalyzer.GetEffort(item.ItemType).Effective;
+			return totalEffort;
+		}))
+		{
+			float locEffort = 0f;
+			if (effortAnalyzer != null)
+				foreach (var item in items)
+					locEffort += effortAnalyzer.GetEffort(item.ItemType).Effective;
+
 			result.Add(new ActionGroup
 			{
 				Type = ActionType.Farm,
 				Heading = $"Farm: {location}",
-				Description = $"{items.Count} item(s) obtainable here",
+				Description = effortAnalyzer != null
+					? $"{items.Count} item(s), ~{locEffort:F0} effort"
+					: $"{items.Count} item(s) obtainable here",
 				Items = items,
-				SubPriority = -items.Count // more items = higher priority
+				SubPriority = -(int)(locEffort > 0 ? 1000f / locEffort : items.Count)
 			});
 		}
 
 		foreach (var (eventName, items) in eventItems)
 		{
-			string triggerHint = GetEventTriggerHint(eventName);
+			string triggerHint = BiomeMapper.GetEventTriggerHint(eventName);
 			result.Add(new ActionGroup
 			{
 				Type = ActionType.Event,
@@ -366,10 +382,6 @@ public static class ActionClassifier
 			result.Add((input.ItemType, input.Quantity));
 		return result;
 	}
-
-	private static string GetNPCLocation(int npcId) => BiomeMapper.GetNPCLocation(npcId);
-
-	private static string GetEventTriggerHint(string eventDescription) => BiomeMapper.GetEventTriggerHint(eventDescription);
 
 	private static string GetBossSummonHint(int npcId)
 	{

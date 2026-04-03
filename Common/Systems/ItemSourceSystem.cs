@@ -496,7 +496,9 @@ public class ItemSourceSystem : ModSystem
 		}
 	}
 
-	private static string FormatCoins(int copper) => global::ProgressionCompass.UI.UIHelper.FormatCoins(copper);
+	private static string FormatCoins(int copper) =>
+		global::ProgressionCompass.UI.UIHelper.FormatCoins(copper);
+
 
 	private static string InferCrateBiome(string crateName) => global::ProgressionCompass.Content.Tracking.BiomeMapper.InferCrateBiome(crateName);
 

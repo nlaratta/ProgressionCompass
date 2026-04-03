@@ -63,14 +63,6 @@ public class PlayerDashboard : UIElement
 			itemType => IsItemTracked?.Invoke(itemType) ?? false,
 			result?.Effort);
 
-		// Debug: log what we got
-		int recCount = result?.Recommendations?.Count ?? 0;
-		int comboCount = result?.Combinations?.Count ?? 0;
-		int mergedCount = _mergedItems?.Count ?? 0;
-		int readyCount = _mergedItems?.FindAll(i => i.Proximity == Proximity.CraftableNow).Count ?? 0;
-		int almostCount = _mergedItems?.FindAll(i => i.Proximity == Proximity.AlmostReady).Count ?? 0;
-		Common.Log.Info($"Dashboard update: {recCount} recs, {comboCount} combos, {mergedCount} merged, {readyCount} ready, {almostCount} almost");
-
 		Rebuild();
 	}
 

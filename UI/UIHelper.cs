@@ -302,22 +302,4 @@ public static class UIHelper
 		return $"{copper}c";
 	}
 
-	// ── Trivial Materials ───────────────────────────────────────
-
-	/// <summary>
-	/// Materials so common that owning them doesn't represent meaningful progress
-	/// toward an upgrade. Used to filter "Almost Ready" items with ≤2 leaf materials
-	/// where the only owned ingredient is trivial (Wood, Gel, Stone, etc.).
-	/// </summary>
-	public static readonly HashSet<int> TrivialMaterials =
-	[
-		ItemID.Wood, ItemID.StoneBlock, ItemID.DirtBlock, ItemID.Gel,
-		ItemID.SandBlock, ItemID.ClayBlock, ItemID.MudBlock, ItemID.Torch,
-		ItemID.Cobweb, ItemID.Lens, ItemID.FallenStar,
-		ItemID.Acorn, ItemID.Daybloom, ItemID.Blinkroot, ItemID.Moonglow,
-		ItemID.Waterleaf, ItemID.Deathweed, ItemID.Shiverthorn,
-		ItemID.BottledWater, ItemID.Mushroom, ItemID.GlowingMushroom,
-		ItemID.Snowball, ItemID.IceBlock,
-		ItemID.RopeCoil, ItemID.Chain
-	];
 }

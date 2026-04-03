@@ -88,7 +88,8 @@ public class TrackingState
 		}
 
 		// Build unified action plan from all goals' missing materials
-		ActionPlan = ActionClassifier.Classify(_goals, inventory, includeChests, sourceSystem);
+		var effortAnalyzer = new EffortAnalyzer(sourceSystem, worldContext);
+		ActionPlan = ActionClassifier.Classify(_goals, inventory, includeChests, sourceSystem, effortAnalyzer);
 	}
 
 	// --- Serialization helpers ---

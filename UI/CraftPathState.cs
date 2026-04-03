@@ -434,8 +434,7 @@ public class CraftPathState : UIState
 			}
 			catch (Exception ex)
 			{
-				Common.Log.Warn($"Resolver error: {ex.Message}\n{ex.StackTrace}");
-				System.Diagnostics.Debug.WriteLine($"[ProgressionCompass] Resolver error: {ex.Message}\n{ex.StackTrace}");
+				Common.Log.Warn($"Resolver error: {ex.Message}");
 			}
 			finally { _resolving = false; }
 		});
@@ -531,8 +530,7 @@ public class CraftPathState : UIState
 			}
 			catch (Exception ex)
 			{
-				Common.Log.Warn($"Progress scan error: {ex.Message}\n{ex.StackTrace}");
-				System.Diagnostics.Debug.WriteLine($"[ProgressionCompass] Progress scan error: {ex.Message}\n{ex.StackTrace}");
+				Common.Log.Warn($"Progress scan error: {ex.Message}");
 			}
 			finally { _scanningProgress = false; }
 		});
