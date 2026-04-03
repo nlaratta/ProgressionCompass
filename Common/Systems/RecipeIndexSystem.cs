@@ -70,6 +70,10 @@ public class RecipeIndexSystem : ModSystem
 
 		EvilAffiliationMap.Initialize();
 		Mod.Logger.Info($"Built evil affiliation map: {EvilAffiliationMap.Count} evil-affiliated items");
+
+		// Verify initialization completeness
+		System.Diagnostics.Debug.Assert(RecipesByResult != null, "RecipesByResult null after PostAddRecipes");
+		System.Diagnostics.Debug.Assert(RecipesByResult.Count > 0, "No recipes indexed — mod load order issue?");
 	}
 
 	public override void Unload()

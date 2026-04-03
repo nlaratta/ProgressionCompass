@@ -171,6 +171,10 @@ public class ItemSourceSystem : ModSystem
 		if (Main.dedServ || _sourcesByItem == null)
 			return;
 
+		// Precondition: source index must exist from PostSetupContent
+		System.Diagnostics.Debug.Assert(_sourcesByItem != null,
+			"ItemSourceSystem.PostAddRecipes called before PostSetupContent");
+
 		int before = _sourcesByItem.Count;
 		IndexNPCShops();
 		Mod.Logger.Info($"Indexed NPC shop sources: {_sourcesByItem.Count - before} new items (total: {_sourcesByItem.Count})");
