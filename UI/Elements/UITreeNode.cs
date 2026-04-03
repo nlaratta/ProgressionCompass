@@ -275,16 +275,35 @@ public class UITreeRow : UIElement
 
 	private static string GetBiomeRequirement(CraftNode craft)
 	{
-		if (craft.Recipe.Conditions.Count == 0)
+		var recipe = craft.Recipe;
+
+		if (recipe.HasCondition(Condition.NearWater)) return "Near water";
+		if (recipe.HasCondition(Condition.NearHoney)) return "Near honey";
+		if (recipe.HasCondition(Condition.NearLava)) return "Near lava";
+
+		if (recipe.Conditions.Count == 0)
 			return null;
 
-		foreach (var cond in craft.Recipe.Conditions)
+		foreach (var cond in recipe.Conditions)
 		{
-			if (cond == Condition.InGraveyard) return "Graveyard";
 			if (cond == Condition.NearWater) return "Near water";
 			if (cond == Condition.NearHoney) return "Near honey";
 			if (cond == Condition.NearLava) return "Near lava";
+			if (cond == Condition.NearShimmer) return "Near shimmer";
+			if (cond == Condition.InGraveyard) return "Graveyard";
 			if (cond == Condition.InSnow) return "Snow biome";
+			if (cond == Condition.InDesert) return "Desert";
+			if (cond == Condition.InJungle) return "Jungle";
+			if (cond == Condition.InDungeon) return "Dungeon";
+			if (cond == Condition.InCorrupt) return "Corruption";
+			if (cond == Condition.InCrimson) return "Crimson";
+			if (cond == Condition.InHallow) return "Hallow";
+			if (cond == Condition.InGlowshroom) return "Mushroom biome";
+			if (cond == Condition.InSpace) return "Space";
+			if (cond == Condition.InUnderworld) return "Underworld";
+			if (cond == Condition.InBeach) return "Beach";
+			if (cond == Condition.TimeDay) return "Daytime";
+			if (cond == Condition.TimeNight) return "Nighttime";
 		}
 
 		return null;

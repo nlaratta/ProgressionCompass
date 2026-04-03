@@ -405,15 +405,24 @@ public class DependencyResolver
 	/// </summary>
 	private static string ExtractBiomeRequirement(Recipe recipe)
 	{
+		// Check recipe environment flags first (separate from Condition objects)
+		if (recipe.HasCondition(Condition.NearWater)) return "Near water";
+		if (recipe.HasCondition(Condition.NearHoney)) return "Near honey";
+		if (recipe.HasCondition(Condition.NearLava)) return "Near lava";
+
 		if (recipe.Conditions.Count == 0)
 			return null;
 
 		foreach (var cond in recipe.Conditions)
 		{
-			if (cond == Condition.InGraveyard) return "Graveyard";
+			// Near* conditions
 			if (cond == Condition.NearWater) return "Near water";
 			if (cond == Condition.NearHoney) return "Near honey";
 			if (cond == Condition.NearLava) return "Near lava";
+			if (cond == Condition.NearShimmer) return "Near shimmer";
+
+			// Biome conditions
+			if (cond == Condition.InGraveyard) return "Graveyard";
 			if (cond == Condition.InSnow) return "Snow biome";
 			if (cond == Condition.InDesert) return "Desert";
 			if (cond == Condition.InJungle) return "Jungle";
@@ -424,6 +433,21 @@ public class DependencyResolver
 			if (cond == Condition.InGlowshroom) return "Mushroom biome";
 			if (cond == Condition.InSpace) return "Space";
 			if (cond == Condition.InUnderworld) return "Underworld";
+			if (cond == Condition.InBeach) return "Beach";
+			if (cond == Condition.InMeteor) return "Meteorite";
+			if (cond == Condition.InRain) return "During rain";
+			if (cond == Condition.InSandstorm) return "During sandstorm";
+
+			// Depth layers
+			if (cond == Condition.InSkyHeight) return "Space";
+			if (cond == Condition.InOverworldHeight) return "Surface";
+			if (cond == Condition.InDirtLayerHeight) return "Underground";
+			if (cond == Condition.InRockLayerHeight) return "Cavern";
+			if (cond == Condition.InUnderworldHeight) return "Underworld";
+
+			// Time
+			if (cond == Condition.TimeDay) return "Daytime";
+			if (cond == Condition.TimeNight) return "Nighttime";
 		}
 
 		return null;

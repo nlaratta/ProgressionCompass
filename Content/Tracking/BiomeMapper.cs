@@ -194,22 +194,62 @@ public static class BiomeMapper
 	// ── Crate Biome Inference ───────────────────────────────────
 
 	/// <summary>
-	/// Infers the biome associated with a fishing crate from its name.
+	/// Returns the biome for a fishing crate. Uses structured ItemID lookup first,
+	/// falls back to name-based inference for modded crates.
 	/// </summary>
-	public static string InferCrateBiome(string crateName)
+	public static string InferCrateBiome(string crateName) =>
+		InferCrateBiomeFromName(crateName);
+
+	/// <summary>
+	/// Returns the biome for a crate by item ID. Covers all 26 vanilla crates.
+	/// Returns null for non-crate items or generic crates (Wooden/Iron/Golden).
+	/// </summary>
+	public static string GetCrateBiome(int crateItemId) =>
+		_crateBiomeMap.GetValueOrDefault(crateItemId);
+
+	private static string InferCrateBiomeFromName(string crateName)
 	{
 		string lower = (crateName ?? "").ToLowerInvariant();
-		if (lower.Contains("jungle")) return "Jungle";
+		if (lower.Contains("jungle") || lower.Contains("bramble")) return "Jungle";
 		if (lower.Contains("frozen") || lower.Contains("boreal")) return "Snow biome";
 		if (lower.Contains("ocean") || lower.Contains("seaside")) return "Ocean";
 		if (lower.Contains("sky") || lower.Contains("azure")) return "Sky islands";
-		if (lower.Contains("corrupt")) return "Corruption";
+		if (lower.Contains("corrupt") || lower.Contains("defiled")) return "Corruption";
 		if (lower.Contains("crimson") || lower.Contains("hematic")) return "Crimson";
 		if (lower.Contains("hallow") || lower.Contains("divine")) return "Hallow";
 		if (lower.Contains("oasis") || lower.Contains("desert") || lower.Contains("mirage")) return "Desert";
 		if (lower.Contains("obsidian") || lower.Contains("hellstone")) return "Underworld";
+		if (lower.Contains("dungeon") || lower.Contains("stockade")) return "Dungeon";
 		return null;
 	}
+
+	// Structured crate ItemID → biome mapping (from decompiled FishingCheck_RollItemDrop)
+	private static readonly Dictionary<int, string> _crateBiomeMap = new()
+	{
+		// Pre-Hardmode → Biome
+		[3203] = "Corruption",   // Corrupt Crate
+		[3204] = "Crimson",      // Crimson Crate
+		[3205] = "Dungeon",      // Dungeon Crate
+		[3206] = "Sky islands",  // Sky Crate
+		[3207] = "Hallow",       // Hallowed Crate
+		[3208] = "Jungle",       // Jungle Crate
+		[4405] = "Snow biome",   // Frozen Crate
+		[4407] = "Desert",       // Oasis Crate
+		[5002] = "Ocean",        // Ocean Crate
+		[4877] = "Underworld",   // Obsidian Crate
+
+		// Hardmode → same biomes
+		[3982] = "Corruption",   // Defiled Crate
+		[3983] = "Crimson",      // Hematic Crate
+		[3984] = "Dungeon",      // Stockade Crate
+		[3985] = "Sky islands",  // Azure Crate
+		[3986] = "Hallow",       // Divine Crate
+		[3987] = "Jungle",       // Bramble Crate
+		[4406] = "Snow biome",   // Boreal Crate
+		[4408] = "Desert",       // Mirage Crate
+		[5003] = "Ocean",        // Seaside Crate
+		[4878] = "Underworld",   // Hellstone Crate
+	};
 
 	// ── Event Trigger Hints ─────────────────────────────────────
 

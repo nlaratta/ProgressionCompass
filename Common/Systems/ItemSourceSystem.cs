@@ -526,8 +526,10 @@ public class ItemSourceSystem : ModSystem
 			string sourceType = isBossBag ? "Open" : isCrate ? "Fish" : "Open";
 			var srcType = isBossBag ? ItemSourceType.BagDrop : isCrate ? ItemSourceType.Fishing : ItemSourceType.Other;
 
-			// Add biome hint for fishing crates
-			string biomeHint = isCrate ? InferCrateBiome(sourceName) : null;
+			// Add biome hint for fishing crates (structured lookup first, name fallback)
+			string biomeHint = isCrate
+				? (global::ProgressionCompass.Content.Tracking.BiomeMapper.GetCrateBiome(itemType) ?? InferCrateBiome(sourceName))
+				: null;
 			string desc = biomeHint != null
 				? $"{sourceType}: {sourceName} ({biomeHint})"
 				: $"{sourceType}: {sourceName}";
