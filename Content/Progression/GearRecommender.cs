@@ -167,160 +167,40 @@ public static class GearRecommender
 			if (itemTier > currentTier + 1) // Allow peeking 1 tier ahead
 				continue;
 
-			// Score: how much better is this than current gear?
-			float score = 0f;
-			string improvement = "";
+			// Score this item against current gear
 			GearCategory category;
-
+			float score;
+			string improvement;
 			int baseDamage = 0;
 			float itemDps = 0;
 
 			if (isWeapon)
 			{
 				category = GearCategory.Weapon;
-
-				// DPS-based comparison instead of raw damage
-				itemDps = PlayerStats.CalculateDps(item);
-				float currentBestDps = GetBestDpsForClass(item, stats);
-
-				// For summon weapons: use damage-per-slot
-				float slotCost = 1f;
-				if (item.DamageType.CountsAsClass(DamageClass.Summon) || item.DamageType == DamageClass.SummonMeleeSpeed)
-				{
-					if (ItemID.Sets.StaffMinionSlotsRequired != null && type < ItemID.Sets.StaffMinionSlotsRequired.Length)
-						slotCost = Math.Max(ItemID.Sets.StaffMinionSlotsRequired[type], 0.5f);
-
-					// Sentries get a bonus — they use separate slots
-					if (item.sentry)
-						itemDps *= 1.3f;
-				}
-				float effectiveDps = itemDps / slotCost;
-
-				if (effectiveDps <= currentBestDps && item.damage <= GetBestDamageForClass(item, bestMeleeDmg, bestRangedDmg, bestMagicDmg, bestSummonDmg))
-					continue; // Not an upgrade by DPS or raw damage
-
-				baseDamage = item.damage;
-				float dpsDelta = effectiveDps - currentBestDps;
-				score = Math.Max(dpsDelta, 0) + Math.Max(item.damage - GetBestDamageForClass(item, bestMeleeDmg, bestRangedDmg, bestMagicDmg, bestSummonDmg), 0) * 0.5f;
-				improvement = $"{item.damage} dmg, {(int)itemDps} DPS";
+				var result = ScoreWeapon(item, type, stats, bestMeleeDmg, bestRangedDmg, bestMagicDmg, bestSummonDmg);
+				if (result == null) continue;
+				(score, improvement, baseDamage, itemDps) = result.Value;
 			}
 			else if (isArmor)
 			{
 				category = GearCategory.Armor;
-				int avgCurrentPerPiece = currentDefense / 3;
-				int delta = item.defense - avgCurrentPerPiece;
-
-				// Class-variant head armor (e.g., Cobalt Hat has 1 def but +40 mana)
-				// may have low defense but valuable class bonuses — don't skip them
-				bool hasClassBonus = ClassDetector.DetectArmorClass(item) != null;
-				if (delta <= 0 && !hasClassBonus) continue;
-
-				score = Math.Max(delta, 0) * 2f;
-				if (hasClassBonus)
-					score += item.rare * 3f; // Class-specific armor is inherently valuable
-				improvement = delta > 0 ? $"{item.defense} def (+{delta})" : $"{item.defense} def";
+				var result = ScoreArmor(item, currentDefense);
+				if (result == null) continue;
+				(score, improvement) = result.Value;
 			}
 			else if (isTool)
 			{
 				category = GearCategory.Tool;
-				int delta = item.pick - bestPickPower;
-				if (delta <= 0) continue;
-				score = delta * 0.5f;
-				improvement = $"{item.pick}% pick (+{delta})";
+				var result = ScoreTool(item, bestPickPower);
+				if (result == null) continue;
+				(score, improvement) = result.Value;
 			}
 			else
 			{
 				category = GearCategory.Accessory;
-
-				// Wings: compare by flight stats
-				if (item.wingSlot > 0)
-				{
-					float wingScore = 0f;
-					try
-					{
-						if (item.wingSlot < Terraria.ID.ArmorIDs.Wing.Sets.Stats.Length)
-						{
-							var ws = Terraria.ID.ArmorIDs.Wing.Sets.Stats[item.wingSlot];
-							float flyTimeDelta = ws.FlyTime - stats.WingFlyTime;
-							float speedDelta = ws.AccRunSpeedOverride - stats.WingSpeed;
-							if (flyTimeDelta <= 0 && speedDelta <= 0 && stats.WingItemType > 0)
-								continue; // Not better than current wings
-							wingScore = flyTimeDelta * 0.5f + speedDelta * 10f;
-							if (ws.HasDownHoverStats) wingScore += 15f;
-							float flySecs = ws.FlyTime / 60f;
-							improvement = $"Wings: {flySecs:F1}s fly, {ws.AccRunSpeedOverride:F0} speed";
-						}
-					}
-					catch { }
-					score = wingScore + 20f;
-				}
-				else
-				{
-					// Classify by equip slot for better display
-					var slotCategory = GetAccessoryCategory(item);
-					string catPrefix = slotCategory switch
-					{
-						AccessorySlotCategory.Shield => "Shield: ",
-						AccessorySlotCategory.Boots => "Boots: ",
-						AccessorySlotCategory.Balloon => "Balloon: ",
-						AccessorySlotCategory.Neck => "Neck: ",
-						AccessorySlotCategory.Combat => "Combat: ",
-						AccessorySlotCategory.Face => "Face: ",
-						AccessorySlotCategory.Back => "Back: ",
-						_ => ""
-					};
-
-					// Try differential analysis first (most accurate — captures actual effects)
-					var effects = AccessoryEffectAnalyzer.Get(type);
-					if (effects != null && effects.TotalScore > 0)
-					{
-						score = effects.TotalScore;
-						string effectText = effects.GetImprovementText();
-						improvement = effectText != null
-							? $"{catPrefix}{effectText}"
-							: $"{catPrefix}Score: {(int)score}";
-					}
-					else
-					{
-						// Fallback: direct numeric fields + tooltip parsing
-						float directScore = 0f;
-						var directParts = new List<string>();
-						if (item.defense > 0)
-						{
-							directScore += item.defense * 4f;
-							directParts.Add($"+{item.defense} def");
-						}
-						if (item.lifeRegen > 0)
-						{
-							directScore += item.lifeRegen * 3f;
-							directParts.Add($"+{item.lifeRegen} regen");
-						}
-						if (item.manaIncrease > 0)
-						{
-							directScore += item.manaIncrease * 0.5f;
-							directParts.Add($"+{item.manaIncrease} mana");
-						}
-
-						float tooltipScore = ScoreAccessoryFromTooltip(item);
-						score = directScore + tooltipScore;
-
-						if (score > 0)
-							improvement = directParts.Count > 0
-								? catPrefix + string.Join(", ", directParts) + (tooltipScore > 0 ? $" (+{(int)tooltipScore})" : "")
-								: $"{catPrefix}Score: {(int)score}";
-						else
-						{
-							score = item.rare * 3f;
-							improvement = $"{catPrefix}Tier {item.rare} accessory";
-						}
-					}
-				}
-
-				// Reduce score for accessories whose effects overlap with already-owned ones
-				float marginal = AccessoryEffectAnalyzer.ComputeMarginalMultiplier(type, equippedAccessories);
-				score *= marginal;
-				if (marginal < 1f && HasSimilarAccessory(item, ownedItems))
-					score *= 0.6f; // Additional penalty if also visually similar
+				var result = ScoreAccessory(item, type, stats, equippedAccessories, ownedItems);
+				if (result == null) continue;
+				(score, improvement) = result.Value;
 			}
 
 			// Basic recipe check (for HasRecipe flag only — resolver handles the rest)
@@ -374,6 +254,135 @@ public static class GearRecommender
 
 		return results;
 	}
+
+	// ── Category Scorers ────────────────────────────────────────
+
+	private static (float score, string improvement, int baseDamage, float dps)? ScoreWeapon(
+		Item item, int type, PlayerStats stats, int bestMelee, int bestRanged, int bestMagic, int bestSummon)
+	{
+		float itemDps = PlayerStats.CalculateDps(item);
+		float currentBestDps = GetBestDpsForClass(item, stats);
+
+		float slotCost = 1f;
+		if (item.DamageType.CountsAsClass(DamageClass.Summon) || item.DamageType == DamageClass.SummonMeleeSpeed)
+		{
+			if (ItemID.Sets.StaffMinionSlotsRequired != null && type < ItemID.Sets.StaffMinionSlotsRequired.Length)
+				slotCost = Math.Max(ItemID.Sets.StaffMinionSlotsRequired[type], 0.5f);
+			if (item.sentry) itemDps *= 1.3f;
+		}
+		float effectiveDps = itemDps / slotCost;
+		int bestDmg = GetBestDamageForClass(item, bestMelee, bestRanged, bestMagic, bestSummon);
+
+		if (effectiveDps <= currentBestDps && item.damage <= bestDmg)
+			return null;
+
+		float dpsDelta = effectiveDps - currentBestDps;
+		float score = Math.Max(dpsDelta, 0) + Math.Max(item.damage - bestDmg, 0) * ScoringConstants.WeaponRawDamageWeight;
+		return (score, $"{item.damage} dmg, {(int)itemDps} DPS", item.damage, itemDps);
+	}
+
+	private static (float score, string improvement)? ScoreArmor(Item item, int currentDefense)
+	{
+		int avgPerPiece = currentDefense / 3;
+		int delta = item.defense - avgPerPiece;
+		bool hasClassBonus = ClassDetector.DetectArmorClass(item) != null;
+
+		if (delta <= 0 && !hasClassBonus) return null;
+
+		float score = Math.Max(delta, 0) * ScoringConstants.ArmorDefenseWeight;
+		if (hasClassBonus) score += item.rare * ScoringConstants.ArmorClassBonusRarityWeight;
+		string improvement = delta > 0 ? $"{item.defense} def (+{delta})" : $"{item.defense} def";
+		return (score, improvement);
+	}
+
+	private static (float score, string improvement)? ScoreTool(Item item, int bestPickPower)
+	{
+		int delta = item.pick - bestPickPower;
+		if (delta <= 0) return null;
+		return (delta * ScoringConstants.ToolPickPowerWeight, $"{item.pick}% pick (+{delta})");
+	}
+
+	private static (float score, string improvement)? ScoreAccessory(
+		Item item, int type, PlayerStats stats, HashSet<int> equippedAccessories, HashSet<int> ownedItems)
+	{
+		float score;
+		string improvement;
+
+		if (item.wingSlot > 0)
+		{
+			float wingScore = 0f;
+			improvement = "Wings";
+			try
+			{
+				if (item.wingSlot < Terraria.ID.ArmorIDs.Wing.Sets.Stats.Length)
+				{
+					var ws = Terraria.ID.ArmorIDs.Wing.Sets.Stats[item.wingSlot];
+					float flyTimeDelta = ws.FlyTime - stats.WingFlyTime;
+					float speedDelta = ws.AccRunSpeedOverride - stats.WingSpeed;
+					if (flyTimeDelta <= 0 && speedDelta <= 0 && stats.WingItemType > 0)
+						return null;
+					wingScore = flyTimeDelta * 0.5f + speedDelta * 10f;
+					if (ws.HasDownHoverStats) wingScore += ScoringConstants.WingHoverBonus;
+					improvement = $"Wings: {ws.FlyTime / 60f:F1}s fly, {ws.AccRunSpeedOverride:F0} speed";
+				}
+			}
+			catch { }
+			score = wingScore + 20f;
+		}
+		else
+		{
+			var slotCategory = GetAccessoryCategory(item);
+			string catPrefix = slotCategory switch
+			{
+				AccessorySlotCategory.Shield => "Shield: ",
+				AccessorySlotCategory.Boots => "Boots: ",
+				AccessorySlotCategory.Balloon => "Balloon: ",
+				AccessorySlotCategory.Neck => "Neck: ",
+				AccessorySlotCategory.Combat => "Combat: ",
+				AccessorySlotCategory.Face => "Face: ",
+				AccessorySlotCategory.Back => "Back: ",
+				_ => ""
+			};
+
+			var effects = AccessoryEffectAnalyzer.Get(type);
+			if (effects != null && effects.TotalScore > 0)
+			{
+				score = effects.TotalScore;
+				string effectText = effects.GetImprovementText();
+				improvement = effectText != null ? $"{catPrefix}{effectText}" : $"{catPrefix}Score: {(int)score}";
+			}
+			else
+			{
+				float directScore = 0f;
+				var parts = new List<string>();
+				if (item.defense > 0) { directScore += item.defense * 4f; parts.Add($"+{item.defense} def"); }
+				if (item.lifeRegen > 0) { directScore += item.lifeRegen * 3f; parts.Add($"+{item.lifeRegen} regen"); }
+				if (item.manaIncrease > 0) { directScore += item.manaIncrease * 0.5f; parts.Add($"+{item.manaIncrease} mana"); }
+
+				float tooltipScore = ScoreAccessoryFromTooltip(item);
+				score = directScore + tooltipScore;
+
+				if (score > 0)
+					improvement = parts.Count > 0
+						? catPrefix + string.Join(", ", parts) + (tooltipScore > 0 ? $" (+{(int)tooltipScore})" : "")
+						: $"{catPrefix}Score: {(int)score}";
+				else
+				{
+					score = item.rare * 3f;
+					improvement = $"{catPrefix}Tier {item.rare} accessory";
+				}
+			}
+		}
+
+		float marginal = AccessoryEffectAnalyzer.ComputeMarginalMultiplier(type, equippedAccessories);
+		score *= marginal;
+		if (marginal < 1f && HasSimilarAccessory(item, ownedItems))
+			score *= 0.6f;
+
+		return (score, improvement);
+	}
+
+	// ── Helpers ──────────────────────────────────────────────────
 
 	private static int GetBestDamageForClass(Item item, int melee, int ranged, int magic, int summon)
 	{

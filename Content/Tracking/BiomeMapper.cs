@@ -17,18 +17,14 @@ namespace ProgressionCompass.Content.Tracking;
 /// </summary>
 public static class BiomeMapper
 {
-	// ── NPC Location (primary API) ──────────────────────────────
+	// ── Primary API ─────────────────────────────────────────────
 
 	/// <summary>
 	/// Returns the primary biome/location string for an NPC.
 	/// Tries bestiary first, falls back to keyword heuristic.
 	/// </summary>
-	public static string GetNPCLocation(int npcId)
-	{
-		string bestiary = GetNPCLocationFromBestiary(npcId);
-		if (bestiary != null) return bestiary;
-		return GetNPCLocationHeuristic(npcId);
-	}
+	public static string GetNPCLocation(int npcId) =>
+		GetNPCLocationFromBestiary(npcId) ?? GetNPCLocationHeuristic(npcId);
 
 	/// <summary>
 	/// Returns all biomes an NPC spawns in. Splits multi-biome bestiary
@@ -49,11 +45,9 @@ public static class BiomeMapper
 		return [location];
 	}
 
-	// ── Source-to-Location Dispatch ─────────────────────────────
-
 	/// <summary>
 	/// Returns the location(s) for any ItemSource, dispatching by source type.
-	/// Used by SourcePriorityAnalyzer to group sources into location buckets.
+	/// Primary entry point for source-to-location mapping.
 	/// </summary>
 	public static List<string> GetSourceLocations(ItemSource source)
 	{

@@ -18,6 +18,23 @@ public class DependencyResolver
 	private const int MaxDepth = 25;
 	private const int MaxRecipesPerItem = 15;
 
+	/// <summary>
+	/// Captures a snapshot of the mutable inventory dictionary.
+	/// Call Restore() to rollback changes on failure.
+	/// </summary>
+	private readonly struct InventorySnapshot(Dictionary<int, int> target, Dictionary<int, int> copy)
+	{
+		public static InventorySnapshot Take(Dictionary<int, int> available) =>
+			new(available, new Dictionary<int, int>(available));
+
+		public void Restore()
+		{
+			target.Clear();
+			foreach (var kv in copy)
+				target[kv.Key] = kv.Value;
+		}
+	}
+
 	private readonly RecipeIndexSystem _recipeIndex;
 	private readonly ItemSourceSystem _sourceSystem;
 	private readonly Dictionary<int, int> _recipePreferences;
@@ -200,7 +217,7 @@ public class DependencyResolver
 			int outputPerCraft = recipe.createItem.stack;
 			int craftCount = (remaining + outputPerCraft - 1) / outputPerCraft;
 
-			var snapshot = new Dictionary<int, int>(available);
+			var snapshot = InventorySnapshot.Take(available);
 			visited.Add(recipeIndex);
 
 			var ingredients = new List<GraphNode>();
@@ -224,14 +241,14 @@ public class DependencyResolver
 
 			if (failed)
 			{
-				foreach (var kv in snapshot) available[kv.Key] = kv.Value;
+				snapshot.Restore();
 				continue;
 			}
 
 			candidates.Add((new CraftNode(itemType, quantity, recipe, craftCount, ingredients),
 				new Dictionary<int, int>(available)));
 
-			foreach (var kv in snapshot) available[kv.Key] = kv.Value;
+			snapshot.Restore();
 		}
 
 		return candidates;
@@ -319,7 +336,7 @@ public class DependencyResolver
 
 		foreach (int memberType in group.ValidItems)
 		{
-			var snapshot = new Dictionary<int, int>(available);
+			var snapshot = InventorySnapshot.Take(available);
 			var node = ResolveItem(memberType, quantity, available, visited, depth);
 			int cost = node.AcquisitionCost;
 			bool isPreferred = _worldContext.IsPreferredOreItem(memberType);
@@ -336,9 +353,7 @@ public class DependencyResolver
 				bestAvailable = new Dictionary<int, int>(available);
 			}
 
-			// Rollback
-			foreach (var kv in snapshot)
-				available[kv.Key] = kv.Value;
+			snapshot.Restore();
 		}
 
 		if (bestNode != null)
@@ -398,7 +413,7 @@ public class DependencyResolver
 				continue;
 
 			// Try resolving the source item
-			var snapshot = new Dictionary<int, int>(available);
+			var snapshot = InventorySnapshot.Take(available);
 			visited.Add(-sourceItemType);
 
 			var sourceNode = ResolveItem(sourceItemType, quantity, available, visited, depth + 1);
@@ -408,8 +423,7 @@ public class DependencyResolver
 			// If the source resolved to a pure AcquireNode with no sources, it's a dead end
 			if (sourceNode is AcquireNode acq && acq.Sources.Count == 0)
 			{
-				foreach (var kv in snapshot)
-					available[kv.Key] = kv.Value;
+				snapshot.Restore();
 				continue;
 			}
 
