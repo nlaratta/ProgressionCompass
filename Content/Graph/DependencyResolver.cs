@@ -142,141 +142,15 @@ public class DependencyResolver
 			return MakeAcquireNode(itemType, quantity);
 		}
 
-		// Try each recipe, collect all viable candidates
-		var candidates = new List<(CraftNode node, Dictionary<int, int> state)>();
-
-		int recipesToTry = Math.Min(recipes.Count, MaxRecipesPerItem);
-		for (int r = 0; r < recipesToTry; r++)
-		{
-			Recipe recipe = recipes[r];
-
-			// Cycle detection: check if this recipe is already on our DFS path
-			int recipeIndex = GetRecipeIndex(recipe);
-			if (visited.Contains(recipeIndex))
-				continue;
-
-			// World evil filter: skip recipes affiliated with the wrong world evil
-			EvilAffiliation recipeEvil = EvilAffiliationMap.GetRecipeAffiliation(recipe);
-			if (!_worldContext.IsAvailable(recipeEvil))
-				continue;
-
-			// Calculate how many times we must execute this recipe
-			int outputPerCraft = recipe.createItem.stack;
-			int craftCount = (remaining + outputPerCraft - 1) / outputPerCraft;
-
-			// Snapshot available for backtracking
-			var snapshot = new Dictionary<int, int>(available);
-			visited.Add(recipeIndex);
-
-			var ingredients = new List<GraphNode>();
-			bool failed = false;
-
-			foreach (Item ingredient in recipe.requiredItem)
-			{
-				if (ingredient.type <= ItemID.None)
-					continue;
-
-				int ingredientQty = ingredient.stack * craftCount;
-				GraphNode childNode;
-
-				// Check if this ingredient has an accepted recipe group
-				int groupId = FindAcceptedGroup(recipe, ingredient.type);
-				if (groupId >= 0)
-					childNode = ResolveGroup(groupId, ingredientQty, available, visited, depth + 1);
-				else
-					childNode = ResolveItem(ingredient.type, ingredientQty, available, visited, depth + 1);
-
-				if (childNode == null)
-				{
-					failed = true;
-					break;
-				}
-
-				ingredients.Add(childNode);
-			}
-
-			visited.Remove(recipeIndex);
-
-			if (failed)
-			{
-				foreach (var kv in snapshot)
-					available[kv.Key] = kv.Value;
-				continue;
-			}
-
-			var candidateNode = new CraftNode(itemType, quantity, recipe, craftCount, ingredients);
-			candidates.Add((candidateNode, new Dictionary<int, int>(available)));
-
-			// Rollback for next recipe attempt
-			foreach (var kv in snapshot)
-				available[kv.Key] = kv.Value;
-		}
+		// Try each recipe via backtracking
+		var candidates = TryRecipeCandidates(
+			itemType, quantity, remaining, recipes, available, visited, depth);
 
 		if (candidates.Count > 0)
 		{
-			// Sort by effective cost: acquisition cost + penalty for unmet recipe conditions.
-			candidates.Sort((a, b) =>
-			{
-				int costA = a.node.AcquisitionCost + GetConditionPenalty(a.node.Recipe);
-				int costB = b.node.AcquisitionCost + GetConditionPenalty(b.node.Recipe);
-				int cmp = costA.CompareTo(costB);
-				if (cmp != 0) return cmp;
-				// Tiebreak: prefer world-evil-matching recipe
-				var evilA = EvilAffiliationMap.GetRecipeAffiliation(a.node.Recipe);
-				var evilB = EvilAffiliationMap.GetRecipeAffiliation(b.node.Recipe);
-				bool matchA = _worldContext.IsAvailable(evilA);
-				bool matchB = _worldContext.IsAvailable(evilB);
-				if (matchA != matchB) return matchA ? -1 : 1;
-				return 0;
-			});
-
-			// Build unified alternatives list: all craft candidates + acquire option
-			var allAlternatives = new List<GraphNode>();
-			foreach (var (node, _) in candidates)
-				allAlternatives.Add(node);
-
-			// Add an AcquireNode alternative if non-recipe sources exist
-			AcquireNode acquireAlt = null;
-			if (sources != null && sources.Count > 0)
-			{
-				acquireAlt = new AcquireNode(itemType, quantity, sources);
-				allAlternatives.Add(acquireAlt);
-			}
-
-			// Sort: craft candidates by effective cost, acquire at its estimated position
-			// Find where acquire fits cost-wise and determine default best
-			int bestRecipeCost = candidates[0].node.AcquisitionCost
-				+ GetConditionPenalty(candidates[0].node.Recipe);
-
-			int defaultIdx = 0;
-			if (acquireCost < bestRecipeCost && acquireAlt != null)
-				defaultIdx = allAlternatives.Count - 1; // Acquire is last in the list
-
-			// Apply user's preference (stored as alternative index)
-			int chosenIdx = defaultIdx;
-			if (_recipePreferences.TryGetValue(itemType, out int prefIdx) && prefIdx >= 0 && prefIdx < allAlternatives.Count)
-				chosenIdx = prefIdx;
-
-			var chosenNode = allAlternatives[chosenIdx];
-
-			// Attach alternatives if more than one option
-			if (allAlternatives.Count > 1)
-				chosenNode = chosenNode with { Alternatives = allAlternatives };
-			chosenNode.SelectedAlternative = chosenIdx;
-
-			// Apply the chosen path's inventory state (only for craft candidates)
-			if (chosenIdx < candidates.Count)
-			{
-				foreach (var kv in candidates[chosenIdx].state)
-					available[kv.Key] = kv.Value;
-			}
-			else if (usedFromInventory > 0)
-			{
-				// Acquire chosen — restore inventory
-				available[itemType] = usedFromInventory;
-			}
-
-			return chosenNode;
+			var result = SelectBestPath(
+				itemType, quantity, candidates, sources, acquireCost, usedFromInventory, available);
+			return result;
 		}
 
 		// No recipe worked — try shimmer for cross-evil items
@@ -295,6 +169,134 @@ public class DependencyResolver
 		if (usedFromInventory > 0)
 			available[itemType] = usedFromInventory;
 		return MakeAcquireNode(itemType, quantity);
+	}
+
+	/// <summary>
+	/// Tries all viable recipes for an item, using snapshot-and-rollback for backtracking.
+	/// Returns a list of viable craft candidates with their post-resolution inventory states.
+	/// </summary>
+	private List<(CraftNode node, Dictionary<int, int> state)> TryRecipeCandidates(
+		int itemType, int quantity, int remaining,
+		List<Recipe> recipes,
+		Dictionary<int, int> available,
+		HashSet<int> visited,
+		int depth)
+	{
+		var candidates = new List<(CraftNode node, Dictionary<int, int> state)>();
+		int recipesToTry = Math.Min(recipes.Count, MaxRecipesPerItem);
+
+		for (int r = 0; r < recipesToTry; r++)
+		{
+			Recipe recipe = recipes[r];
+
+			int recipeIndex = GetRecipeIndex(recipe);
+			if (visited.Contains(recipeIndex))
+				continue;
+
+			EvilAffiliation recipeEvil = EvilAffiliationMap.GetRecipeAffiliation(recipe);
+			if (!_worldContext.IsAvailable(recipeEvil))
+				continue;
+
+			int outputPerCraft = recipe.createItem.stack;
+			int craftCount = (remaining + outputPerCraft - 1) / outputPerCraft;
+
+			var snapshot = new Dictionary<int, int>(available);
+			visited.Add(recipeIndex);
+
+			var ingredients = new List<GraphNode>();
+			bool failed = false;
+
+			foreach (Item ingredient in recipe.requiredItem)
+			{
+				if (ingredient.type <= ItemID.None) continue;
+
+				int ingredientQty = ingredient.stack * craftCount;
+				int groupId = FindAcceptedGroup(recipe, ingredient.type);
+				var childNode = groupId >= 0
+					? ResolveGroup(groupId, ingredientQty, available, visited, depth + 1)
+					: ResolveItem(ingredient.type, ingredientQty, available, visited, depth + 1);
+
+				if (childNode == null) { failed = true; break; }
+				ingredients.Add(childNode);
+			}
+
+			visited.Remove(recipeIndex);
+
+			if (failed)
+			{
+				foreach (var kv in snapshot) available[kv.Key] = kv.Value;
+				continue;
+			}
+
+			candidates.Add((new CraftNode(itemType, quantity, recipe, craftCount, ingredients),
+				new Dictionary<int, int>(available)));
+
+			foreach (var kv in snapshot) available[kv.Key] = kv.Value;
+		}
+
+		return candidates;
+	}
+
+	/// <summary>
+	/// Given recipe candidates and optional acquire sources, selects the best path.
+	/// Compares craft cost vs acquire cost, builds alternatives list, applies user preference.
+	/// </summary>
+	private GraphNode SelectBestPath(
+		int itemType, int quantity,
+		List<(CraftNode node, Dictionary<int, int> state)> candidates,
+		List<ItemSource> sources, int acquireCost, int usedFromInventory,
+		Dictionary<int, int> available)
+	{
+		// Sort candidates by effective cost
+		candidates.Sort((a, b) =>
+		{
+			int costA = a.node.AcquisitionCost + GetConditionPenalty(a.node.Recipe);
+			int costB = b.node.AcquisitionCost + GetConditionPenalty(b.node.Recipe);
+			int cmp = costA.CompareTo(costB);
+			if (cmp != 0) return cmp;
+			var evilA = EvilAffiliationMap.GetRecipeAffiliation(a.node.Recipe);
+			var evilB = EvilAffiliationMap.GetRecipeAffiliation(b.node.Recipe);
+			bool matchA = _worldContext.IsAvailable(evilA);
+			bool matchB = _worldContext.IsAvailable(evilB);
+			if (matchA != matchB) return matchA ? -1 : 1;
+			return 0;
+		});
+
+		// Build unified alternatives: craft candidates + optional acquire
+		var allAlternatives = new List<GraphNode>();
+		foreach (var (node, _) in candidates)
+			allAlternatives.Add(node);
+
+		if (sources != null && sources.Count > 0)
+			allAlternatives.Add(new AcquireNode(itemType, quantity, sources));
+
+		// Determine default: acquire wins if cheaper than best recipe
+		int bestRecipeCost = candidates[0].node.AcquisitionCost + GetConditionPenalty(candidates[0].node.Recipe);
+		int defaultIdx = acquireCost < bestRecipeCost && allAlternatives.Count > candidates.Count
+			? allAlternatives.Count - 1 : 0;
+
+		// Apply user preference
+		int chosenIdx = defaultIdx;
+		if (_recipePreferences.TryGetValue(itemType, out int prefIdx) && prefIdx >= 0 && prefIdx < allAlternatives.Count)
+			chosenIdx = prefIdx;
+
+		var chosenNode = allAlternatives[chosenIdx];
+		if (allAlternatives.Count > 1)
+			chosenNode = chosenNode with { Alternatives = allAlternatives };
+		chosenNode.SelectedAlternative = chosenIdx;
+
+		// Apply inventory state for chosen path
+		if (chosenIdx < candidates.Count)
+		{
+			foreach (var kv in candidates[chosenIdx].state)
+				available[kv.Key] = kv.Value;
+		}
+		else if (usedFromInventory > 0)
+		{
+			available[itemType] = usedFromInventory;
+		}
+
+		return chosenNode;
 	}
 
 	/// <summary>
