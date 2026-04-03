@@ -33,9 +33,8 @@ public class UpgradeItem
     // ── Milestones (from CombinationScanner) ────────────────────
     public List<CombinationMilestone> ReadyMilestones { get; init; } = [];
 
-    // ── Recipe info (from GearRecommender) ──────────────────────
+    // ── Recipe info ───────────────────────────────────────────────
     public bool HasRecipe { get; init; }
-    public List<(int itemType, int needed, int owned)> Ingredients { get; init; }
 
     // ── Proximity (computed from tree completion) ────────────────
     public Proximity Proximity { get; init; }

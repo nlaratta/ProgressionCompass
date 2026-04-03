@@ -67,7 +67,7 @@ public static class UpgradeItemBuilder
 
         if (combo != null)
         {
-            // Tree-based data available — use it for completion + proximity
+            // Tree-based data from resolver — always preferred
             leafOwned = combo.LeafMaterialsOwned;
             leafTotal = combo.LeafMaterialsTotal;
             missing = combo.MissingItems ?? [];
@@ -76,12 +76,12 @@ public static class UpgradeItemBuilder
         }
         else
         {
-            // No tree data — fall back to direct-ingredient info
-            leafOwned = rec.TotalIngredientCount - rec.MissingIngredientCount;
-            leafTotal = rec.TotalIngredientCount;
-            missing = BuildMissingFromIngredients(rec.Ingredients);
+            // No resolver data (item couldn't be resolved) — minimal fallback
+            leafOwned = 0;
+            leafTotal = 0;
+            missing = [];
             milestones = [];
-            prox = rec.Proximity; // Use GearRecommender's original proximity
+            prox = rec.HasRecipe ? Proximity.NeedsWork : Proximity.FarAway;
         }
 
         return new UpgradeItem
@@ -98,7 +98,6 @@ public static class UpgradeItemBuilder
             MissingItems = missing,
             ReadyMilestones = milestones,
             HasRecipe = rec.HasRecipe,
-            Ingredients = rec.Ingredients,
             Proximity = prox,
             IsTracked = isTracked?.Invoke(rec.ItemType) ?? false
         };
@@ -148,21 +147,4 @@ public static class UpgradeItemBuilder
         return Proximity.FarAway;
     }
 
-    /// <summary>
-    /// Builds a missing items list from GearRecommender's ingredient data
-    /// (fallback when no CombinationResult is available).
-    /// </summary>
-    private static List<(int itemType, int quantity)> BuildMissingFromIngredients(
-        List<(int itemType, int needed, int owned)> ingredients)
-    {
-        if (ingredients == null) return [];
-
-        var missing = new List<(int, int)>();
-        foreach (var (itemType, needed, owned) in ingredients)
-        {
-            if (owned < needed)
-                missing.Add((itemType, needed - owned));
-        }
-        return missing;
-    }
 }

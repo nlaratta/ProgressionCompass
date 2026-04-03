@@ -60,12 +60,8 @@ public class GearRecommendation
 	public int ItemType { get; init; }
 	public GearCategory Category { get; init; }
 	public string ImprovementText { get; init; }
-	public bool CraftableNow { get; init; }
-	public int MissingIngredientCount { get; init; }
-	public int TotalIngredientCount { get; init; }
 	public Tier RequiredTier { get; init; }
 	public float Score { get; init; }
-	public Proximity Proximity { get; init; }
 
 	/// <summary>The item's actual base damage (0 for non-weapons).</summary>
 	public int BaseDamage { get; init; }
@@ -78,8 +74,6 @@ public class GearRecommendation
 	public List<Graph.ItemSource> AllSources { get; init; }
 	/// <summary>True if this item has a crafting recipe.</summary>
 	public bool HasRecipe { get; init; }
-	/// <summary>Recipe ingredients: (itemType, needed, owned). Null if not craftable.</summary>
-	public List<(int itemType, int needed, int owned)> Ingredients { get; init; }
 
 	/// <summary>Primary way to obtain this item.</summary>
 	public AcquisitionMethod Acquisition { get; init; }
@@ -329,53 +323,10 @@ public static class GearRecommender
 					score *= 0.6f; // Additional penalty if also visually similar
 			}
 
-			// Check craftability + gather ingredient details
+			// Basic recipe check (for HasRecipe flag only — resolver handles the rest)
 			bool hasRecipe = recipeIndex?.RecipesByResult?.ContainsKey(type) ?? false;
-			int missingCount = 0;
-			int totalIngCount = 0;
-			List<(int itemType, int needed, int owned)> bestIngredients = null;
 
-			if (hasRecipe)
-			{
-				var recipes = recipeIndex.RecipesByResult[type];
-				int bestMissing = int.MaxValue;
-
-				foreach (var recipe in recipes)
-				{
-					int missing = 0;
-					var ings = new List<(int, int, int)>();
-					foreach (var ing in recipe.requiredItem)
-					{
-						if (ing.type <= ItemID.None) continue;
-						int have = 0;
-						if (inventory.TryGetValue(ing.type, out var entry))
-							have = entry.AvailableCount(includeChests);
-						ings.Add((ing.type, ing.stack, Math.Min(have, ing.stack)));
-						if (have < ing.stack)
-							missing++;
-					}
-					if (missing < bestMissing)
-					{
-						bestMissing = missing;
-						bestIngredients = ings;
-					}
-				}
-				missingCount = bestMissing;
-				totalIngCount = bestIngredients?.Count ?? 0;
-			}
-
-			// Classify proximity (no score boost — sections handle grouping)
-			Proximity proximity;
-			if (hasRecipe && missingCount == 0)
-				proximity = Proximity.CraftableNow;
-			else if (hasRecipe && missingCount <= 2)
-				proximity = Proximity.AlmostReady;
-			else if (hasRecipe)
-				proximity = Proximity.NeedsWork;
-			else
-				proximity = Proximity.FarAway;
-
-			// Source info + acquisition method
+			// Source info for non-craftable items
 			string sourceHint = null;
 			List<Graph.ItemSource> allSources = null;
 			AcquisitionMethod acquisition = hasRecipe ? AcquisitionMethod.Craftable : AcquisitionMethod.Unknown;
@@ -407,18 +358,13 @@ public static class GearRecommender
 				ItemType = type,
 				Category = category,
 				ImprovementText = improvement,
-				CraftableNow = hasRecipe && missingCount == 0,
-				MissingIngredientCount = missingCount,
-				TotalIngredientCount = totalIngCount,
 				RequiredTier = itemTier,
 				Score = score,
-				Proximity = proximity,
 				BaseDamage = baseDamage,
 				Dps = itemDps,
 				SourceHint = sourceHint,
 				AllSources = allSources,
 				HasRecipe = hasRecipe,
-				Ingredients = bestIngredients,
 				Acquisition = acquisition
 			});
 		}

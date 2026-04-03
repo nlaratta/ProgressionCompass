@@ -399,7 +399,7 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 					_readyCount++;
 					break;
 				case Proximity.AlmostReady:
-					if (upgrade.LeafMaterialsTotal < 3 && !OwnsNonTrivialIngredient(upgrade))
+					if (upgrade.LeafMaterialsTotal < 3 && !HasMeaningfulProgress(upgrade))
 						break;
 					_nearlyList?.Add(MakeUpgradeCard(upgrade));
 					_nearlyCount++;
@@ -420,18 +420,16 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 			_buildingList?.Add(new UIEmptyMessage("None yet"));
 	}
 
-	/// <summary>
-	/// For small recipes (≤2 leaf materials), checks if the player owns at least one
-	/// non-trivial ingredient — not just a very common material like Wood or Gel.
-	/// </summary>
-	private static bool OwnsNonTrivialIngredient(UpgradeItem item)
+	private static bool HasMeaningfulProgress(UpgradeItem item)
 	{
-		if (item.Ingredients == null) return false;
-		foreach (var (ingType, needed, owned) in item.Ingredients)
+		if (item.LeafMaterialsTotal > 0 && item.LeafMaterialsOwned > 0)
 		{
-			if (owned <= 0) continue;
-			if (!global::ProgressionCompass.UI.UIHelper.TrivialMaterials.Contains(ingType))
+			if (item.MissingItems == null || item.MissingItems.Count == 0)
 				return true;
+			foreach (var (matType, _) in item.MissingItems)
+				if (!global::ProgressionCompass.UI.UIHelper.TrivialMaterials.Contains(matType))
+					return true;
+			return false;
 		}
 		return false;
 	}

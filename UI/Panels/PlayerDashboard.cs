@@ -93,19 +93,24 @@ public class PlayerDashboard : UIElement
 	}
 
 	/// <summary>
-	/// For small recipes (≤2 leaf materials), checks if the player owns at least one
-	/// non-trivial ingredient — not just a very common material like Wood or Gel.
-	/// Prevents noise from items showing as "Almost Ready" just because the player
-	/// has basic materials in their inventory.
+	/// For small recipes (≤2 leaf materials), checks if the player's owned materials
+	/// represent meaningful progress — not just owning trivial common materials.
+	/// With tree-based data, checks that at least one missing item is non-trivial.
 	/// </summary>
-	private static bool OwnsNonTrivialIngredient(UpgradeItem item)
+	private static bool HasMeaningfulProgress(UpgradeItem item)
 	{
-		if (item.Ingredients == null) return false;
-		foreach (var (ingType, needed, owned) in item.Ingredients)
+		// If we have tree data: owned at least one non-trivial material
+		if (item.LeafMaterialsTotal > 0 && item.LeafMaterialsOwned > 0)
 		{
-			if (owned <= 0) continue;
-			if (!UIHelper.TrivialMaterials.Contains(ingType))
-				return true;
+			// Check that what we're MISSING isn't all trivial (i.e., what we own is meaningful)
+			if (item.MissingItems == null || item.MissingItems.Count == 0)
+				return true; // Nothing missing = definitely meaningful
+			// If all missing items are trivial, then what we own is the non-trivial part
+			foreach (var (matType, _) in item.MissingItems)
+				if (!UIHelper.TrivialMaterials.Contains(matType))
+					return true; // At least one non-trivial item is still missing AND we have progress
+			// All missing items are trivial → we only own trivial stuff → not meaningful
+			return false;
 		}
 		return false;
 	}
@@ -166,7 +171,7 @@ public class PlayerDashboard : UIElement
 			i.Proximity == Proximity.AlmostReady
 			// For small recipes (≤2 leaves), only show if player owns an
 			// equipment ingredient — owning just a common material isn't meaningful
-			&& (i.LeafMaterialsTotal >= 3 || OwnsNonTrivialIngredient(i)));
+			&& (i.LeafMaterialsTotal >= 3 || HasMeaningfulProgress(i)));
 		if (almost.Count == 0) return;
 
 		almost.Sort((a, b) => b.CompletionPercent.CompareTo(a.CompletionPercent));

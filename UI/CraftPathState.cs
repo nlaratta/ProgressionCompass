@@ -484,6 +484,54 @@ public class CraftPathState : UIState
 			{
 				var combos = CombinationScanner.Scan(recipeIndex, sourceSystem, invCopy, includeChests, tier, worldContext);
 				var recs = GearRecommender.Recommend(armorDefense, PlayerClass.Mixed, tier, recipeIndex, sourceSystem, invCopy, includeChests, worldContext);
+
+				// Resolve each recommended item that CombinationScanner didn't cover.
+				// This gives every recommendation tree-based completion data so
+				// UpgradeItemBuilder always has resolver results for proximity/acquisition.
+				var comboTypes = new HashSet<int>();
+				foreach (var c in combos)
+					comboTypes.Add(c.ItemType);
+
+				var resolver = new global::ProgressionCompass.Content.Graph.DependencyResolver(
+					recipeIndex, sourceSystem, worldContext: worldContext, currentTier: tier);
+
+				foreach (var rec in recs)
+				{
+					if (comboTypes.Contains(rec.ItemType))
+						continue; // Already resolved by CombinationScanner
+
+					try
+					{
+						var inv = new Dictionary<int, global::ProgressionCompass.Content.Graph.InventoryEntry>(invCopy);
+						var result = resolver.Resolve(rec.ItemType, 1, inv, includeChests);
+						if (result?.Materials == null || result.Materials.Count == 0)
+							continue;
+
+						int owned = 0;
+						int total = result.Materials.Count;
+						var missing = new List<(int, int)>();
+						foreach (var mat in result.Materials)
+						{
+							if (mat.IsComplete(includeChests))
+								owned++;
+							else
+								missing.Add((mat.ItemType, mat.Deficit(includeChests)));
+						}
+
+						combos.Add(new global::ProgressionCompass.Content.Progression.CombinationResult
+						{
+							ItemType = rec.ItemType,
+							LeafMaterialsOwned = owned,
+							LeafMaterialsTotal = total,
+							MissingItems = missing,
+							IsAccessory = rec.Category == global::ProgressionCompass.Content.Progression.GearCategory.Accessory,
+							IsWeapon = rec.Category == global::ProgressionCompass.Content.Progression.GearCategory.Weapon,
+							IsArmor = rec.Category == global::ProgressionCompass.Content.Progression.GearCategory.Armor
+						});
+					}
+					catch { }
+				}
+
 				_pendingProgressResult = new ProgressScanResult
 				{
 					Combinations = combos,
