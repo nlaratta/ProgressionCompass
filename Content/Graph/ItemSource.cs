@@ -52,21 +52,7 @@ public record ItemSource(
 	};
 
 	/// <summary>Formats the shop price as a readable coin string. Returns null if no price.</summary>
-	public string FormattedPrice
-	{
-		get
-		{
-			if (ShopPrice <= 0) return null;
-			int copper = ShopPrice;
-			int platinum = copper / 1000000; copper %= 1000000;
-			int gold = copper / 10000; copper %= 10000;
-			int silver = copper / 100; copper %= 100;
-			if (platinum > 0) return gold > 0 ? $"{platinum}p {gold}g" : $"{platinum}p";
-			if (gold > 0) return silver > 0 ? $"{gold}g {silver}s" : $"{gold}g";
-			if (silver > 0) return $"{silver}s";
-			return $"{copper}c";
-		}
-	}
+	public string FormattedPrice => ShopPrice > 0 ? UI.UIHelper.FormatCoins(ShopPrice) : null;
 
 	/// <summary>Picks the best source from a list by recommendation score.</summary>
 	public static ItemSource PickBest(System.Collections.Generic.List<ItemSource> sources)

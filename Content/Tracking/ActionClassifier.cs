@@ -74,13 +74,16 @@ public static class ActionClassifier
 		var exploreItems = new List<ActionItem>();
 		var unknownItems = new List<ActionItem>();
 
+		// Build craft step cache once — O(1) lookups instead of O(n×m) per item
+		var craftCache = BuildCraftStepCache(goals);
+
 		foreach (var (itemType, missing) in allMissing)
 		{
 			// Check if craftable with current inventory (all sub-ingredients owned)
-			if (missing.IsCraftable && IsSubCraftable(itemType, goals))
+			if (missing.IsCraftable && IsSubCraftable(itemType, craftCache))
 			{
-				string stationName = GetCraftingStation(itemType, goals);
-				var ingredients = GetCraftIngredients(itemType, goals);
+				string stationName = GetCraftingStation(itemType, craftCache);
+				var ingredients = GetCraftIngredients(itemType, craftCache);
 				craftNowItems.Add(new ActionItem
 				{
 					ItemType = itemType,
@@ -313,78 +316,55 @@ public static class ActionClassifier
 	/// Checks if an item can be crafted RIGHT NOW — meaning the resolver found it as
 	/// a CraftNode and all its leaf materials are owned.
 	/// </summary>
-	private static bool IsSubCraftable(int itemType, IReadOnlyList<PinnedGoal> goals)
+	/// <summary>
+	/// Builds a cache of craft steps by item type from all goals' craft orders.
+	/// Replaces 3 separate O(n×m) lookups with O(1) dictionary access.
+	/// </summary>
+	private static Dictionary<int, CraftStep> BuildCraftStepCache(IReadOnlyList<PinnedGoal> goals)
 	{
+		var cache = new Dictionary<int, CraftStep>();
 		foreach (var goal in goals)
 		{
-			if (goal.Result?.CraftOrder == null)
-				continue;
+			if (goal.Result?.CraftOrder == null) continue;
 			foreach (var step in goal.Result.CraftOrder)
-			{
-				if (step.ItemType != itemType)
-					continue;
-				// Check if all inputs are owned or from previous (completed) steps
-				bool allReady = true;
-				foreach (var input in step.Inputs)
-				{
-					if (input.Source == CraftStepInputSource.NeedToAcquire)
-					{
-						allReady = false;
-						break;
-					}
-				}
-				if (allReady)
-					return true;
-			}
+				cache.TryAdd(step.ItemType, step);
 		}
-		return false;
+		return cache;
 	}
 
-	/// <summary>Gets the crafting station name for an item from its resolved craft order.</summary>
-	private static string GetCraftingStation(int itemType, IReadOnlyList<PinnedGoal> goals)
+	private static bool IsSubCraftable(int itemType, Dictionary<int, CraftStep> craftCache)
 	{
-		foreach (var goal in goals)
-		{
-			if (goal.Result?.CraftOrder == null)
-				continue;
-			foreach (var step in goal.Result.CraftOrder)
-			{
-				if (step.ItemType != itemType || step.RequiredTiles == null)
-					continue;
-				var names = new List<string>();
-				foreach (int tileId in step.RequiredTiles)
-				{
-					if (tileId < 0) continue;
-					string name = Lang.GetMapObjectName(
-						Terraria.Map.MapHelper.TileToLookup(tileId, 0));
-					if (!string.IsNullOrEmpty(name))
-						names.Add(name);
-				}
-				if (names.Count > 0)
-					return string.Join(" + ", names);
-			}
-		}
-		return null;
+		if (!craftCache.TryGetValue(itemType, out var step))
+			return false;
+		foreach (var input in step.Inputs)
+			if (input.Source == CraftStepInputSource.NeedToAcquire)
+				return false;
+		return true;
 	}
 
-	/// <summary>Gets the ingredients for a craftable item from its resolved craft order.</summary>
-	private static List<(int itemType, int quantity)> GetCraftIngredients(int itemType, IReadOnlyList<PinnedGoal> goals)
+	private static string GetCraftingStation(int itemType, Dictionary<int, CraftStep> craftCache)
 	{
-		foreach (var goal in goals)
+		if (!craftCache.TryGetValue(itemType, out var step) || step.RequiredTiles == null)
+			return null;
+		var names = new List<string>();
+		foreach (int tileId in step.RequiredTiles)
 		{
-			if (goal.Result?.CraftOrder == null)
-				continue;
-			foreach (var step in goal.Result.CraftOrder)
-			{
-				if (step.ItemType != itemType)
-					continue;
-				var result = new List<(int, int)>();
-				foreach (var input in step.Inputs)
-					result.Add((input.ItemType, input.Quantity));
-				return result;
-			}
+			if (tileId < 0) continue;
+			string name = Lang.GetMapObjectName(Terraria.Map.MapHelper.TileToLookup(tileId, 0));
+			if (!string.IsNullOrEmpty(name))
+				names.Add(name);
 		}
-		return null;
+		return names.Count > 0 ? string.Join(" + ", names) : null;
+	}
+
+	private static List<(int itemType, int quantity)> GetCraftIngredients(int itemType, Dictionary<int, CraftStep> craftCache)
+	{
+		if (!craftCache.TryGetValue(itemType, out var step))
+			return null;
+		var result = new List<(int, int)>();
+		foreach (var input in step.Inputs)
+			result.Add((input.ItemType, input.Quantity));
+		return result;
 	}
 
 	private static string GetNPCLocation(int npcId) => BiomeMapper.GetNPCLocation(npcId);

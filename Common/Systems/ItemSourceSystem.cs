@@ -492,21 +492,7 @@ public class ItemSourceSystem : ModSystem
 		}
 	}
 
-	private static string FormatCoins(int copper)
-	{
-		if (copper <= 0) return "";
-		int platinum = copper / 1000000;
-		copper %= 1000000;
-		int gold = copper / 10000;
-		copper %= 10000;
-		int silver = copper / 100;
-		copper %= 100;
-
-		if (platinum > 0) return gold > 0 ? $"{platinum}p {gold}g" : $"{platinum}p";
-		if (gold > 0) return silver > 0 ? $"{gold}g {silver}s" : $"{gold}g";
-		if (silver > 0) return $"{silver}s";
-		return $"{copper}c";
-	}
+	private static string FormatCoins(int copper) => global::ProgressionCompass.UI.UIHelper.FormatCoins(copper);
 
 	private static string InferCrateBiome(string crateName) => global::ProgressionCompass.Content.Tracking.BiomeMapper.InferCrateBiome(crateName);
 
