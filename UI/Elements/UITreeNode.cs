@@ -64,7 +64,7 @@ public class UITreeRow : UIElement
 	public override void RightClick(UIMouseEvent evt)
 	{
 		base.RightClick(evt);
-		if (_node is CraftNode craft && craft.HasAlternatives)
+		if (_node.HasAlternatives)
 			OnCycleRecipe?.Invoke(this);
 	}
 
@@ -180,11 +180,12 @@ public class UITreeRow : UIElement
 				afterLabel += FontAssets.MouseText.Value.MeasureString($"@ {stationText}").X * 0.65f + 6f;
 			}
 
-			// Recipe alternatives indicator
+			// Alternatives indicator (recipes + acquire options)
 			if (craftNode.HasAlternatives)
 			{
 				bool hoverAlt = IsMouseHovering;
-				string altText = $"(Recipe {craftNode.SelectedAlternative + 1}/{craftNode.AlternativeCount})";
+				string altLabel = GetAlternativeLabel(craftNode);
+				string altText = $"({altLabel} {craftNode.SelectedAlternative + 1}/{craftNode.AlternativeCount})";
 				if (hoverAlt)
 					altText += " Right-click to change";
 				Color altColor = hoverAlt ? new Color(120, 200, 255) : new Color(80, 150, 200);
@@ -213,6 +214,18 @@ public class UITreeRow : UIElement
 			Color sourceColor = UIHelper.GetSourceColor(bestSrc.Type);
 			Utils.DrawBorderString(spriteBatch, sourceDesc,
 				new Vector2(afterLabel, textY + 2f), sourceColor, 0.6f);
+			afterLabel += FontAssets.MouseText.Value.MeasureString(sourceDesc).X * 0.6f + 8f;
+
+			// Show alternatives indicator if craft recipes also exist
+			if (acquire.HasAlternatives)
+			{
+				bool hoverAlt = IsMouseHovering;
+				string altText = $"(Option {acquire.SelectedAlternative + 1}/{acquire.AlternativeCount})";
+				if (hoverAlt) altText += " Right-click to change";
+				Color altColor = hoverAlt ? new Color(120, 200, 255) : new Color(80, 150, 200);
+				Utils.DrawBorderString(spriteBatch, altText,
+					new Vector2(afterLabel, textY + 2f), altColor, 0.55f);
+			}
 		}
 
 		// Shimmer info
@@ -273,6 +286,23 @@ public class UITreeRow : UIElement
 		}
 
 		return names.Count > 0 ? string.Join(" + ", names) : null;
+	}
+
+	private static string GetAlternativeLabel(GraphNode node)
+	{
+		if (!node.HasAlternatives) return "Option";
+
+		// Count how many are craft vs acquire vs shimmer
+		int craftCount = 0, acquireCount = 0;
+		foreach (var alt in node.Alternatives)
+		{
+			if (alt is CraftNode) craftCount++;
+			else acquireCount++;
+		}
+
+		if (acquireCount == 0) return "Recipe";
+		if (craftCount == 0) return "Source";
+		return "Option"; // Mixed craft + acquire
 	}
 
 	private static string GetBiomeRequirement(CraftNode craft)

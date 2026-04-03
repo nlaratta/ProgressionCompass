@@ -109,23 +109,32 @@ public class DependencyResolver
 			available[itemType] = 0;
 		}
 
-		// Step 2: Look up recipes
-		if (!_recipeIndex.RecipesByResult.TryGetValue(itemType, out var recipes) || recipes.Count == 0)
+		// Step 2: Compute the best non-recipe acquisition cost.
+		// Sources (gather, buy, drop) compete with recipes — the resolver picks
+		// whichever is cheapest rather than always preferring recipes.
+		var sources = _sourceSystem?.GetSources(itemType, _worldContext);
+		int acquireCost = EstimateAcquireCost(itemType, sources);
+
+		// Step 3: Look up recipes and try each one
+		_recipeIndex.RecipesByResult.TryGetValue(itemType, out var recipes);
+
+		// If no recipes exist, go straight to acquire/shimmer
+		if (recipes == null || recipes.Count == 0)
 		{
-			// Not craftable — try shimmer as alternative
-			var shimmerFallback = TryShimmerFallback(itemType, quantity, available, visited, depth);
-			if (shimmerFallback != null)
-				return shimmerFallback;
+			// Try shimmer for cross-evil items (e.g., Shadow Scale in Crimson world)
+			if (IsWrongEvilItem(itemType))
+			{
+				var shimmerFallback = TryShimmerFallback(itemType, quantity, available, visited, depth);
+				if (shimmerFallback != null)
+					return shimmerFallback;
+			}
 
 			if (usedFromInventory > 0)
 				available[itemType] = usedFromInventory;
 			return MakeAcquireNode(itemType, quantity);
 		}
 
-		// Step 2b: Check if this item is a raw material that happens to have
-		// reverse-decoration recipes (wall→block, platform→block, etc.).
-		// If it has non-crafting sources and ALL recipes are reversals, prefer gathering.
-		var sources = _sourceSystem?.GetSources(itemType, _worldContext);
+		// Skip recipes entirely for reversal-only items with real sources
 		if (sources != null && sources.Count > 0 && AreAllRecipesReversals(itemType, recipes))
 		{
 			if (usedFromInventory > 0)
@@ -133,7 +142,7 @@ public class DependencyResolver
 			return MakeAcquireNode(itemType, quantity);
 		}
 
-		// Step 3: Try each recipe, collect all viable candidates, pick best
+		// Try each recipe, collect all viable candidates
 		var candidates = new List<(CraftNode node, Dictionary<int, int> state)>();
 
 		int recipesToTry = Math.Min(recipes.Count, MaxRecipesPerItem);
@@ -206,8 +215,6 @@ public class DependencyResolver
 		if (candidates.Count > 0)
 		{
 			// Sort by effective cost: acquisition cost + penalty for unmet recipe conditions.
-			// Recipes requiring conditions above the player's current tier are deprioritized
-			// but still shown as alternatives.
 			candidates.Sort((a, b) =>
 			{
 				int costA = a.node.AcquisitionCost + GetConditionPenalty(a.node.Recipe);
@@ -223,44 +230,65 @@ public class DependencyResolver
 				return 0;
 			});
 
-			// Apply user's recipe preference: find candidate matching the preferred recipe index
-			int preferredIdx = 0;
-			if (_recipePreferences.TryGetValue(itemType, out int prefRecipeIdx) && prefRecipeIdx >= 0)
+			// Build unified alternatives list: all craft candidates + acquire option
+			var allAlternatives = new List<GraphNode>();
+			foreach (var (node, _) in candidates)
+				allAlternatives.Add(node);
+
+			// Add an AcquireNode alternative if non-recipe sources exist
+			AcquireNode acquireAlt = null;
+			if (sources != null && sources.Count > 0)
 			{
-				for (int c = 0; c < candidates.Count; c++)
-				{
-					if (GetRecipeIndex(candidates[c].node.Recipe) == prefRecipeIdx)
-					{
-						preferredIdx = c;
-						break;
-					}
-				}
+				acquireAlt = new AcquireNode(itemType, quantity, sources);
+				allAlternatives.Add(acquireAlt);
 			}
 
-			var best = candidates[preferredIdx];
+			// Sort: craft candidates by effective cost, acquire at its estimated position
+			// Find where acquire fits cost-wise and determine default best
+			int bestRecipeCost = candidates[0].node.AcquisitionCost
+				+ GetConditionPenalty(candidates[0].node.Recipe);
 
-			// Attach all candidates as alternatives if more than one
-			if (candidates.Count > 1)
+			int defaultIdx = 0;
+			if (acquireCost < bestRecipeCost && acquireAlt != null)
+				defaultIdx = allAlternatives.Count - 1; // Acquire is last in the list
+
+			// Apply user's preference (stored as alternative index)
+			int chosenIdx = defaultIdx;
+			if (_recipePreferences.TryGetValue(itemType, out int prefIdx) && prefIdx >= 0 && prefIdx < allAlternatives.Count)
+				chosenIdx = prefIdx;
+
+			var chosenNode = allAlternatives[chosenIdx];
+
+			// Attach alternatives if more than one option
+			if (allAlternatives.Count > 1)
+				chosenNode = chosenNode with { Alternatives = allAlternatives };
+			chosenNode.SelectedAlternative = chosenIdx;
+
+			// Apply the chosen path's inventory state (only for craft candidates)
+			if (chosenIdx < candidates.Count)
 			{
-				var alts = new List<CraftNode>(candidates.Count);
-				foreach (var (node, _) in candidates)
-					alts.Add(node);
-				best = (best.node with { Alternatives = alts }, best.state);
+				foreach (var kv in candidates[chosenIdx].state)
+					available[kv.Key] = kv.Value;
+			}
+			else if (usedFromInventory > 0)
+			{
+				// Acquire chosen — restore inventory
+				available[itemType] = usedFromInventory;
 			}
 
-			// Apply the best path's inventory state
-			foreach (var kv in best.state)
-				available[kv.Key] = kv.Value;
-			return best.node;
+			return chosenNode;
 		}
 
-		// No recipe worked — try shimmer as a fallback path
-		var shimmerNode = TryShimmerFallback(itemType, quantity, available, visited, depth);
-		if (shimmerNode != null)
+		// No recipe worked — try shimmer for cross-evil items
+		if (IsWrongEvilItem(itemType))
 		{
-			if (usedFromInventory > 0)
-				available[itemType] = 0; // Consumed from inventory
-			return shimmerNode;
+			var shimmerNode = TryShimmerFallback(itemType, quantity, available, visited, depth);
+			if (shimmerNode != null)
+			{
+				if (usedFromInventory > 0)
+					available[itemType] = 0;
+				return shimmerNode;
+			}
 		}
 
 		// Nothing worked — treat as raw material
@@ -339,31 +367,33 @@ public class DependencyResolver
 		HashSet<int> visited,
 		int depth)
 	{
-		if (depth > MaxDepth - 2) // Reserve depth for shimmer + source resolution
+		// Only try shimmer at shallow depths to avoid exponential blowup
+		// (4000+ decrafting sources can cause combinatorial explosion)
+		if (depth > MaxDepth - 5)
 			return null;
 
+		// Only use direct ShimmerTransformToItem transforms, NOT decrafting.
+		// Decrafting sources are too numerous and create deep recursive paths.
 		var allSources = _sourceSystem?.GetSources(itemType) ?? [];
 		foreach (var source in allSources)
 		{
 			if (source.Type != ItemSourceType.Shimmer || source.SourceEntityId <= 0)
 				continue;
 
+			// Skip decrafting sources in resolver — they're too expensive to explore
+			// recursively. They still show as sources in the material panel.
+			if (source.Description.StartsWith("Decraft:"))
+				continue;
+
 			int sourceItemType = source.SourceEntityId;
 
 			// Prevent shimmer cycles (A shimmers into B, B shimmers into A)
-			if (visited.Contains(-sourceItemType)) // Use negative IDs for shimmer cycle detection
+			if (visited.Contains(-sourceItemType))
 				continue;
 
 			// Check if the source item is obtainable in this world
 			if (!_worldContext.IsAvailable(EvilAffiliationMap.Get(sourceItemType)))
 				continue;
-
-			// Check shimmer decrafting locks (Post-Skeletron/Post-Golem gating)
-			if (source.Description.StartsWith("Decraft:"))
-			{
-				if (!IsDecraftingAvailable(sourceItemType))
-					continue;
-			}
 
 			// Try resolving the source item
 			var snapshot = new Dictionary<int, int>(available);
@@ -385,6 +415,62 @@ public class DependencyResolver
 		}
 
 		return null;
+	}
+
+	/// <summary>
+	/// Estimates the effective cost of acquiring an item through non-recipe sources.
+	/// Lower = easier to obtain. Returns int.MaxValue if no sources exist.
+	/// This competes with recipe AcquisitionCost to decide craft vs acquire.
+	/// </summary>
+	private int EstimateAcquireCost(int itemType, List<ItemSource> sources)
+	{
+		if (sources == null || sources.Count == 0)
+			return int.MaxValue;
+
+		int bestCost = int.MaxValue;
+		foreach (var source in sources)
+		{
+			int cost = source.Type switch
+			{
+				// Gathering is free — mine, chop, dig, collect
+				ItemSourceType.Gathering => 0,
+
+				// Shop: free if NPC is available, expensive if not
+				ItemSourceType.NPCShop => _worldContext.IsNpcAvailable(source.SourceEntityId) ? 1 : 20,
+
+				// Drops: cost scales inversely with drop rate
+				ItemSourceType.NPCDrop => source.DropRate >= 0.1f ? 3 : source.DropRate >= 0.02f ? 6 : 10,
+				ItemSourceType.BossDrop => 8,
+				ItemSourceType.Event => 10,
+				ItemSourceType.BagDrop => 8,
+
+				// Exploration: moderate effort
+				ItemSourceType.Fishing => 8,
+				ItemSourceType.ChestLoot => 12,
+
+				// Shimmer: handled separately via TryShimmerFallback
+				ItemSourceType.Shimmer => int.MaxValue,
+
+				_ => 15
+			};
+
+			if (cost < bestCost)
+				bestCost = cost;
+		}
+
+		return bestCost;
+	}
+
+	/// <summary>
+	/// Returns true if this item is affiliated with the opposite world evil.
+	/// Shimmer fallback is ONLY used for these items (cross-evil transmutation).
+	/// </summary>
+	private bool IsWrongEvilItem(int itemType)
+	{
+		var affiliation = EvilAffiliationMap.Get(itemType);
+		if (affiliation == EvilAffiliation.Neutral)
+			return false;
+		return !_worldContext.IsAvailable(affiliation);
 	}
 
 	/// <summary>

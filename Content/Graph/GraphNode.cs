@@ -11,6 +11,19 @@ public abstract record GraphNode(int ItemType, int Quantity)
 {
 	/// <summary>Recursively counts how many raw items must be acquired (not already owned).</summary>
 	public abstract int AcquisitionCost { get; }
+
+	/// <summary>
+	/// All viable resolution paths for this item, including the chosen one.
+	/// Index 0 is the default best. May contain CraftNodes, AcquireNodes, ShimmerNodes.
+	/// Empty if only one path exists.
+	/// </summary>
+	public List<GraphNode> Alternatives { get; init; } = [];
+
+	/// <summary>Index of the currently active alternative (0 = best/default).</summary>
+	public int SelectedAlternative { get; set; }
+
+	public bool HasAlternatives => Alternatives.Count > 1;
+	public int AlternativeCount => Alternatives.Count;
 }
 
 /// <summary>Player already owns enough of this item — no action needed.</summary>
@@ -35,19 +48,6 @@ public record CraftNode(
 	int CraftCount,
 	List<GraphNode> Ingredients) : GraphNode(ItemType, Quantity)
 {
-	/// <summary>
-	/// Alternative complete subtrees for this item, sorted by cost ascending.
-	/// Index 0 is the currently selected alternative. Empty if only one recipe exists.
-	/// Set by the resolver when multiple viable recipes are found.
-	/// </summary>
-	public List<CraftNode> Alternatives { get; init; } = [];
-
-	/// <summary>Index of the currently active alternative (0 = best/default).</summary>
-	public int SelectedAlternative { get; set; }
-
-	public bool HasAlternatives => Alternatives.Count > 1;
-	public int AlternativeCount => Alternatives.Count;
-
 	public override int AcquisitionCost
 	{
 		get

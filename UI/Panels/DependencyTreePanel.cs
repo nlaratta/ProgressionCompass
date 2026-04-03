@@ -75,26 +75,17 @@ public class DependencyTreePanel : UIElement
 	/// <summary>Recursively flattens the GraphNode tree into a list of entries with depth info.</summary>
 	private void FlattenNode(GraphNode node, int depth, bool isLastChild)
 	{
-		// Apply recipe preference: if user selected an alternative, use that subtree
+		// Apply alternative preference: if user selected a different path, use it
 		var displayNode = node;
-		if (node is CraftNode craft && craft.HasAlternatives)
+		if (node.HasAlternatives)
 		{
 			int selectedAlt = 0;
-			if (_recipePreferences.TryGetValue(craft.ItemType, out int prefRecipeIdx) && prefRecipeIdx >= 0)
-			{
-				for (int i = 0; i < craft.Alternatives.Count; i++)
-				{
-					if (FindRecipeIndex(craft.Alternatives[i].Recipe) == prefRecipeIdx)
-					{
-						selectedAlt = i;
-						break;
-					}
-				}
-			}
+			if (_recipePreferences.TryGetValue(node.ItemType, out int prefIdx) && prefIdx >= 0 && prefIdx < node.AlternativeCount)
+				selectedAlt = prefIdx;
 
-			if (selectedAlt > 0 && selectedAlt < craft.AlternativeCount)
-				displayNode = craft.Alternatives[selectedAlt];
-			craft.SelectedAlternative = selectedAlt;
+			if (selectedAlt > 0 && selectedAlt < node.AlternativeCount)
+				displayNode = node.Alternatives[selectedAlt];
+			node.SelectedAlternative = selectedAlt;
 		}
 
 		var children = GetChildren(displayNode);
@@ -128,29 +119,19 @@ public class DependencyTreePanel : UIElement
 
 	private void OnRowCycleRecipe(UITreeRow row)
 	{
-		if (row.Node is not CraftNode craft || !craft.HasAlternatives)
+		if (!row.Node.HasAlternatives)
 			return;
 
-		// Find current alternative index by matching the stored recipe preference
+		// Find current alternative index
 		int currentAltIdx = 0;
-		if (_recipePreferences.TryGetValue(craft.ItemType, out int currentRecipeIdx))
-		{
-			for (int i = 0; i < craft.Alternatives.Count; i++)
-			{
-				if (FindRecipeIndex(craft.Alternatives[i].Recipe) == currentRecipeIdx)
-				{
-					currentAltIdx = i;
-					break;
-				}
-			}
-		}
+		if (_recipePreferences.TryGetValue(row.Node.ItemType, out int prefIdx) && prefIdx >= 0)
+			currentAltIdx = prefIdx;
 
 		// Cycle to the next alternative
-		int nextAltIdx = (currentAltIdx + 1) % craft.AlternativeCount;
-		int nextRecipeIdx = FindRecipeIndex(craft.Alternatives[nextAltIdx].Recipe);
+		int nextAltIdx = (currentAltIdx + 1) % row.Node.AlternativeCount;
 
-		// Fire event with the stable recipe index
-		OnRecipeCycled?.Invoke(craft.ItemType, nextRecipeIdx);
+		// Fire event with the alternative index
+		OnRecipeCycled?.Invoke(row.Node.ItemType, nextAltIdx);
 	}
 
 	private static int FindRecipeIndex(Terraria.Recipe recipe)

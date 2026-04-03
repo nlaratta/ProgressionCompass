@@ -445,22 +445,26 @@ internal class UIMaterialRow : UIElement
 			subY += 16f;
 		}
 
-		// Source tags (up to 3, for missing/partial items)
+		// Source tags (up to 3, sorted by quality — best sources first)
 		if (!complete && _material.Sources.Count > 0)
 		{
-			int maxSources = System.Math.Min(_material.Sources.Count, 3);
+			// Sort by recommendation score so shops/drops show before shimmer decrafts
+			var sortedSources = new System.Collections.Generic.List<Content.Graph.ItemSource>(_material.Sources);
+			sortedSources.Sort((a, b) => b.RecommendationScore.CompareTo(a.RecommendationScore));
+
+			int maxSources = System.Math.Min(sortedSources.Count, 3);
 			for (int s = 0; s < maxSources; s++)
 			{
-				var src = _material.Sources[s];
+				var src = sortedSources[s];
 				Color sourceColor = UIHelper.GetSourceColor(src.Type);
 
 				var sourcePos = new Vector2(dims.X + 52f, subY);
 				Utils.DrawBorderString(spriteBatch, src.Description, sourcePos, sourceColor, 0.6f);
 				subY += 16f;
 			}
-			if (_material.Sources.Count > 3)
+			if (sortedSources.Count > 3)
 			{
-				Utils.DrawBorderString(spriteBatch, $"  +{_material.Sources.Count - 3} more sources...",
+				Utils.DrawBorderString(spriteBatch, $"  +{sortedSources.Count - 3} more sources...",
 					new Vector2(dims.X + 52f, subY), Color.Gray, 0.55f);
 			}
 		}

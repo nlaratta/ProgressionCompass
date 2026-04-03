@@ -47,11 +47,24 @@ public readonly record struct WorldContext
 	public bool DownedSkeletron { get; init; }
 	public bool DownedGolem { get; init; }
 
+	// NPC availability — which town NPCs are present in the world
+	public HashSet<int> AvailableNpcs { get; init; }
+
 	public bool IsCorruption => !IsCrimson;
 	public bool HardmodeOresKnown => CobaltTier != -1;
 
 	/// <summary>True if this context was actually captured (not default/zero).</summary>
 	public bool IsValid => CopperTier != 0 || IsCrimson || HasBothEvils;
+
+	/// <summary>
+	/// Checks if an NPC is currently available in the world.
+	/// Returns true if the NPC has moved in, or if we don't have NPC data (permissive).
+	/// </summary>
+	public bool IsNpcAvailable(int npcType)
+	{
+		if (AvailableNpcs == null) return true; // No data — don't filter
+		return AvailableNpcs.Contains(npcType);
+	}
 
 	/// <summary>Captures world state on the main thread. Call ONLY from the main thread.</summary>
 	public static WorldContext Capture()
@@ -72,7 +85,8 @@ public readonly record struct WorldContext
 				IsExpert = Main.expertMode,
 				IsMaster = Main.masterMode,
 				DownedSkeletron = NPC.downedBoss3,
-				DownedGolem = NPC.downedGolemBoss
+				DownedGolem = NPC.downedGolemBoss,
+				AvailableNpcs = SnapshotAvailableNpcs()
 			};
 		}
 		catch
@@ -80,6 +94,34 @@ public readonly record struct WorldContext
 			// Fallback for edge cases (main menu, etc.)
 			return default;
 		}
+	}
+
+	/// <summary>
+	/// Scans Main.npc[] for all active town NPCs and returns their type IDs.
+	/// Includes special merchants (Skeleton Merchant, Traveling Merchant) if present.
+	/// </summary>
+	private static HashSet<int> SnapshotAvailableNpcs()
+	{
+		var npcs = new HashSet<int>();
+		try
+		{
+			for (int i = 0; i < Main.maxNPCs; i++)
+			{
+				var npc = Main.npc[i];
+				if (npc != null && npc.active && npc.type > NPCID.None && npc.townNPC)
+					npcs.Add(npc.type);
+			}
+
+			// Also check for non-townNPC merchants that have shops
+			// Skeleton Merchant (NPCID 453) is not townNPC but has a shop
+			if (NPC.AnyNPCs(NPCID.SkeletonMerchant))
+				npcs.Add(NPCID.SkeletonMerchant);
+			// Traveling Merchant (NPCID 368)
+			if (NPC.AnyNPCs(NPCID.TravellingMerchant))
+				npcs.Add(NPCID.TravellingMerchant);
+		}
+		catch { }
+		return npcs;
 	}
 
 	/// <summary>
