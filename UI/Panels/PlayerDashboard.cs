@@ -169,9 +169,8 @@ public class PlayerDashboard : UIElement
 
 		var almost = _mergedItems.FindAll(i =>
 			i.Proximity == Proximity.AlmostReady
-			// For small recipes (≤2 leaves), only show if player owns an
-			// equipment ingredient — owning just a common material isn't meaningful
-			&& (i.LeafMaterialsTotal >= 3 || HasMeaningfulProgress(i)));
+			// For small recipes, require owning a non-trivial material
+			&& (i.LeafMaterialsTotal > 3 || HasMeaningfulProgress(i)));
 		if (almost.Count == 0) return;
 
 		almost.Sort((a, b) => b.CompletionPercent.CompareTo(a.CompletionPercent));
@@ -200,7 +199,9 @@ public class PlayerDashboard : UIElement
 
 		var building = _mergedItems.FindAll(i =>
 			i.Proximity is Proximity.NeedsWork or Proximity.FarAway
-			&& i.CompletionPercent >= 40f);
+			&& i.CompletionPercent >= 40f
+			// For small recipes, require owning a non-trivial material
+			&& (i.LeafMaterialsTotal > 3 || HasMeaningfulProgress(i)));
 		if (building.Count == 0) return;
 
 		building.Sort((a, b) => b.CompletionPercent.CompareTo(a.CompletionPercent));

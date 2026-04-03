@@ -72,7 +72,7 @@ public static class UpgradeItemBuilder
             leafTotal = combo.LeafMaterialsTotal;
             missing = combo.MissingItems ?? [];
             milestones = combo.ReadyMilestones ?? [];
-            prox = ProximityFromCompletion(combo.CompletionPercent);
+            prox = ProximityFromCompletion(combo.CompletionPercent, combo.LeafMaterialsTotal);
         }
         else
         {
@@ -131,7 +131,7 @@ public static class UpgradeItemBuilder
             MissingItems = combo.MissingItems ?? [],
             ReadyMilestones = combo.ReadyMilestones ?? [],
             HasRecipe = true,
-            Proximity = ProximityFromCompletion(combo.CompletionPercent),
+            Proximity = ProximityFromCompletion(combo.CompletionPercent, combo.LeafMaterialsTotal),
             IsTracked = isTracked?.Invoke(combo.ItemType) ?? false
         };
     }
@@ -139,10 +139,17 @@ public static class UpgradeItemBuilder
     /// <summary>
     /// Derives Proximity from tree-based completion percentage.
     /// </summary>
-    public static Proximity ProximityFromCompletion(float completionPercent)
+    public static Proximity ProximityFromCompletion(float completionPercent, int totalMaterials = 0)
     {
         if (completionPercent >= ScoringConstants.CraftableNowThreshold) return Proximity.CraftableNow;
-        if (completionPercent >= ScoringConstants.AlmostReadyThreshold) return Proximity.AlmostReady;
+
+        // For small recipes (≤3 materials), use a lower threshold for AlmostReady.
+        // 2/3 = 66% should be "almost ready", not "building toward".
+        float almostThreshold = totalMaterials > 0 && totalMaterials <= 3
+            ? ScoringConstants.NeedsWorkThreshold + 10f  // 50% for small recipes
+            : ScoringConstants.AlmostReadyThreshold;     // 80% for large recipes
+
+        if (completionPercent >= almostThreshold) return Proximity.AlmostReady;
         if (completionPercent >= ScoringConstants.NeedsWorkThreshold) return Proximity.NeedsWork;
         return Proximity.FarAway;
     }

@@ -392,6 +392,15 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		// Distribute into readiness columns
 		foreach (var upgrade in filtered)
 		{
+			// For small recipes (≤3 leaf materials), require owning at least
+			// one non-trivial material to appear in ANY column. This prevents
+			// "Iron Hammer" (have Wood, need Iron Bar) from flooding Building
+			// while allowing "Finch Staff" (have the rare ingredient) to show.
+			if (upgrade.Proximity != Proximity.CraftableNow
+				&& upgrade.LeafMaterialsTotal <= 3
+				&& !HasMeaningfulProgress(upgrade))
+				continue;
+
 			switch (upgrade.Proximity)
 			{
 				case Proximity.CraftableNow:
@@ -399,8 +408,6 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 					_readyCount++;
 					break;
 				case Proximity.AlmostReady:
-					if (upgrade.LeafMaterialsTotal < 3 && !HasMeaningfulProgress(upgrade))
-						break;
 					_nearlyList?.Add(MakeUpgradeCard(upgrade));
 					_nearlyCount++;
 					break;
@@ -408,7 +415,6 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 					_buildingList?.Add(MakeUpgradeCard(upgrade));
 					_buildingCount++;
 					break;
-				// FarAway items not shown in columns
 			}
 		}
 
