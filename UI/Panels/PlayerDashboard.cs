@@ -132,7 +132,7 @@ public class PlayerDashboard : UIElement
 		AddShowMoreLess(section, ready.Count);
 	}
 
-	// ── Almost Ready: 80%+ tree completion ──────────────────
+	// ── Almost Ready: 1-2 missing materials ──────────────────
 	private void AddAlmostReadySection()
 	{
 		if (_mergedItems == null) return;
@@ -146,17 +146,7 @@ public class PlayerDashboard : UIElement
 		_list.Add(new UIDashboardSectionHeader(section, IsSectionCollapsed(section), () => ToggleSection(section)));
 		if (IsSectionCollapsed(section)) return;
 
-		bool showAll = _showAll.GetValueOrDefault(section, false);
-		int limit = showAll ? almost.Count : Math.Min(almost.Count, InitialShowCount);
-
-		for (int i = 0; i < limit; i++)
-		{
-			_list.Add(new UIUpgradeItemRow(almost[i],
-				type => OnAnalyzeItem?.Invoke(type),
-				type => OnPinItem?.Invoke(type)));
-		}
-
-		AddShowMoreLess(section, almost.Count);
+		AddGroupedItems(almost, section);
 	}
 
 	// ── Building Toward: 40%+ completion ────────────────────
@@ -175,17 +165,102 @@ public class PlayerDashboard : UIElement
 		_list.Add(new UIDashboardSectionHeader(section, IsSectionCollapsed(section), () => ToggleSection(section)));
 		if (IsSectionCollapsed(section)) return;
 
-		bool showAll = _showAll.GetValueOrDefault(section, false);
-		int limit = showAll ? building.Count : Math.Min(building.Count, InitialShowCount);
+		AddGroupedItems(building, section);
+	}
 
-		for (int i = 0; i < limit; i++)
+	/// <summary>
+	/// Adds items to the list, grouping 3+ items sharing a primary bar into tier cards.
+	/// </summary>
+	private void AddGroupedItems(List<UpgradeItem> items, string section)
+	{
+		// Group by primary bar
+		var barGroups = new Dictionary<int, List<UpgradeItem>>();
+		var ungrouped = new List<UpgradeItem>();
+
+		foreach (var item in items)
 		{
-			_list.Add(new UIUpgradeItemRow(building[i],
-				type => OnAnalyzeItem?.Invoke(type),
-				type => OnPinItem?.Invoke(type)));
+			int bar = DetectPrimaryBar(item);
+			if (bar > 0)
+			{
+				if (!barGroups.TryGetValue(bar, out var group))
+				{
+					group = [];
+					barGroups[bar] = group;
+				}
+				group.Add(item);
+			}
+			else
+			{
+				ungrouped.Add(item);
+			}
 		}
 
-		AddShowMoreLess(section, building.Count);
+		// Build display list: tier cards for groups of 3+, individual rows for the rest
+		var displayItems = new List<UIElement>();
+		foreach (var (barType, group) in barGroups)
+		{
+			if (group.Count >= 3)
+			{
+				group.Sort((a, b) => b.Score.CompareTo(a.Score));
+				var barItem = ContentSamples.ItemsByType.GetValueOrDefault(barType);
+				var card = new UITierGroupCard(barItem?.Name ?? "Tier", barType, group,
+					type => OnAnalyzeItem?.Invoke(type),
+					type => OnPinItem?.Invoke(type));
+				displayItems.Add(card);
+			}
+			else
+			{
+				foreach (var item in group)
+					displayItems.Add(new UIUpgradeItemRow(item,
+						type => OnAnalyzeItem?.Invoke(type),
+						type => OnPinItem?.Invoke(type)));
+			}
+		}
+		foreach (var item in ungrouped)
+			displayItems.Add(new UIUpgradeItemRow(item,
+				type => OnAnalyzeItem?.Invoke(type),
+				type => OnPinItem?.Invoke(type)));
+
+		bool showAll = _showAll.GetValueOrDefault(section, false);
+		int limit = showAll ? displayItems.Count : Math.Min(displayItems.Count, InitialShowCount);
+
+		for (int i = 0; i < limit; i++)
+			_list.Add(displayItems[i]);
+
+		AddShowMoreLess(section, displayItems.Count);
+	}
+
+	private static int DetectPrimaryBar(UpgradeItem item)
+	{
+		if (item.MissingItems == null || item.MissingItems.Count == 0)
+			return 0;
+
+		HashSet<int> barTypes = [
+			ItemID.CopperBar, ItemID.TinBar, ItemID.IronBar, ItemID.LeadBar,
+			ItemID.SilverBar, ItemID.TungstenBar, ItemID.GoldBar, ItemID.PlatinumBar,
+			ItemID.CobaltBar, ItemID.PalladiumBar, ItemID.MythrilBar, ItemID.OrichalcumBar,
+			ItemID.AdamantiteBar, ItemID.TitaniumBar,
+			ItemID.DemoniteBar, ItemID.CrimtaneBar, ItemID.HellstoneBar,
+			ItemID.HallowedBar, ItemID.ChlorophyteBar, ItemID.ShroomiteBar, ItemID.SpectreBar
+		];
+
+		foreach (var (matType, _) in item.MissingItems)
+			if (barTypes.Contains(matType))
+				return matType;
+
+		HashSet<int> oreTypes = [
+			ItemID.CopperOre, ItemID.TinOre, ItemID.IronOre, ItemID.LeadOre,
+			ItemID.SilverOre, ItemID.TungstenOre, ItemID.GoldOre, ItemID.PlatinumOre,
+			ItemID.CobaltOre, ItemID.PalladiumOre, ItemID.MythrilOre, ItemID.OrichalcumOre,
+			ItemID.AdamantiteOre, ItemID.TitaniumOre,
+			ItemID.DemoniteOre, ItemID.CrimtaneOre, ItemID.Hellstone
+		];
+
+		foreach (var (matType, _) in item.MissingItems)
+			if (oreTypes.Contains(matType))
+				return matType;
+
+		return 0;
 	}
 
 	private void AddShowMoreLess(string section, int totalCount)

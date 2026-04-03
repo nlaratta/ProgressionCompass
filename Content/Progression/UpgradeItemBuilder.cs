@@ -150,8 +150,8 @@ public static class UpgradeItemBuilder
     {
         if (completionPercent >= ScoringConstants.CraftableNowThreshold) return Proximity.CraftableNow;
 
-        // Primary: missing material count determines tier
-        if (missingCount >= 0)
+        // Primary: missing material count determines tier (must own SOMETHING)
+        if (missingCount >= 0 && completionPercent > 0f)
         {
             if (missingCount <= 2)
                 return Proximity.AlmostReady; // 1-2 things left = almost ready
@@ -159,6 +159,9 @@ public static class UpgradeItemBuilder
                 return Proximity.NeedsWork;   // 3+ missing but ≥40% done
             return Proximity.FarAway;
         }
+        // missingCount available but 0% completion = haven't started
+        if (missingCount >= 0 && completionPercent <= 0f)
+            return Proximity.FarAway;
 
         // Fallback: percentage-based (when missing count unavailable)
         if (completionPercent >= ScoringConstants.AlmostReadyThreshold) return Proximity.AlmostReady;
