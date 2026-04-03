@@ -75,7 +75,7 @@ public static class UpgradeItemBuilder
             missing = combo.MissingItems ?? [];
             milestones = combo.ReadyMilestones ?? [];
             float remainingEffort = effortAnalyzer?.TotalRemainingEffort(missing) ?? -1f;
-            prox = ProximityFromCompletion(combo.CompletionPercent, combo.LeafMaterialsTotal, remainingEffort);
+            prox = ProximityFromCompletion(combo.CompletionPercent, missing.Count, remainingEffort);
         }
         else
         {
@@ -133,36 +133,36 @@ public static class UpgradeItemBuilder
             MissingItems = combo.MissingItems ?? [],
             ReadyMilestones = combo.ReadyMilestones ?? [],
             HasRecipe = true,
-            Proximity = ProximityFromCompletion(combo.CompletionPercent, combo.LeafMaterialsTotal,
+            Proximity = ProximityFromCompletion(combo.CompletionPercent,
+                combo.MissingItems?.Count ?? -1,
                 effortAnalyzer?.TotalRemainingEffort(combo.MissingItems) ?? -1f),
             IsTracked = isTracked?.Invoke(combo.ItemType) ?? false
         };
     }
 
     /// <summary>
-    /// Derives Proximity from completion % and remaining effort.
-    /// If remaining effort is trivial, boosts toward AlmostReady.
+    /// Derives Proximity from missing material count and remaining effort.
+    /// Primary signal: how many distinct materials are missing.
+    /// Secondary signal: remaining effort adjusts within tiers.
     /// </summary>
     public static Proximity ProximityFromCompletion(
-        float completionPercent, int totalMaterials = 0, float remainingEffort = -1f)
+        float completionPercent, int missingCount = -1, float remainingEffort = -1f)
     {
         if (completionPercent >= ScoringConstants.CraftableNowThreshold) return Proximity.CraftableNow;
 
-        // Effort-adjusted completion: if remaining materials are trivial (low effort),
-        // boost the apparent completion. This replaces the hardcoded sliding threshold.
-        float adjustedCompletion = completionPercent;
-        if (remainingEffort >= 0f && completionPercent > 0f)
+        // Primary: missing material count determines tier
+        if (missingCount >= 0)
         {
-            // Trivial remaining effort (<5) boosts completion by up to 30%
-            // High remaining effort (>50) reduces by up to 20%
-            float effortBonus = remainingEffort < 5f ? 30f * (1f - remainingEffort / 5f)
-                : remainingEffort > 50f ? -20f * Math.Min((remainingEffort - 50f) / 100f, 1f)
-                : 0f;
-            adjustedCompletion = Math.Clamp(completionPercent + effortBonus, 0f, 99.9f);
+            if (missingCount <= 2)
+                return Proximity.AlmostReady; // 1-2 things left = almost ready
+            if (completionPercent >= ScoringConstants.NeedsWorkThreshold)
+                return Proximity.NeedsWork;   // 3+ missing but ≥40% done
+            return Proximity.FarAway;
         }
 
-        if (adjustedCompletion >= ScoringConstants.AlmostReadyThreshold) return Proximity.AlmostReady;
-        if (adjustedCompletion >= ScoringConstants.NeedsWorkThreshold) return Proximity.NeedsWork;
+        // Fallback: percentage-based (when missing count unavailable)
+        if (completionPercent >= ScoringConstants.AlmostReadyThreshold) return Proximity.AlmostReady;
+        if (completionPercent >= ScoringConstants.NeedsWorkThreshold) return Proximity.NeedsWork;
         return Proximity.FarAway;
     }
 
