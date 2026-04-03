@@ -29,6 +29,20 @@ public enum AcquisitionMethod
 	Unknown
 }
 
+/// <summary>Functional category of an accessory based on equip slot.</summary>
+public enum AccessorySlotCategory
+{
+	Wing,
+	Shield,
+	Balloon,
+	Boots,
+	Neck,
+	Combat,   // handOnSlot — gloves, gauntlets
+	Face,
+	Back,
+	Other     // no equip slot — invisible accessories
+}
+
 /// <summary>
 /// A recommended gear upgrade: an item the player doesn't own that is
 /// better than what they currently have and available at their tier.
@@ -99,9 +113,18 @@ public static class GearRecommender
 		int bestPickPower = stats.BestPickPower;
 
 		var ownedItems = new HashSet<int>();
+		var equippedAccessories = new HashSet<int>();
 		foreach (var (type, entry) in inventory)
+		{
 			if (entry.AvailableCount(includeChests) > 0)
+			{
 				ownedItems.Add(type);
+				// Track owned accessories for marginal effect scoring
+				var sampleItem = ContentSamples.ItemsByType.GetValueOrDefault(type);
+				if (sampleItem is { accessory: true })
+					equippedAccessories.Add(type);
+			}
+		}
 
 		var results = new List<GearRecommendation>();
 
@@ -136,6 +159,12 @@ public static class GearRecommender
 
 			// World evil filter: skip items affiliated with the wrong evil
 			if (!worldContext.IsAvailable(EvilAffiliationMap.Get(type)))
+				continue;
+
+			// Difficulty-gated items: skip Expert-only in Normal, Master-only in non-Master
+			if (item.expertOnly && !worldContext.IsExpert)
+				continue;
+			if (item.masterOnly && !worldContext.IsMaster)
 				continue;
 
 			// Check if this item is available at the player's tier
@@ -233,22 +262,71 @@ public static class GearRecommender
 				}
 				else
 				{
-					// Parse tooltip for actual stat bonuses
-					float tooltipScore = ScoreAccessoryFromTooltip(item);
-					if (tooltipScore > 0)
+					// Classify by equip slot for better display
+					var slotCategory = GetAccessoryCategory(item);
+					string catPrefix = slotCategory switch
 					{
-						score = tooltipScore;
-						improvement = $"Score: {(int)tooltipScore}";
+						AccessorySlotCategory.Shield => "Shield: ",
+						AccessorySlotCategory.Boots => "Boots: ",
+						AccessorySlotCategory.Balloon => "Balloon: ",
+						AccessorySlotCategory.Neck => "Neck: ",
+						AccessorySlotCategory.Combat => "Combat: ",
+						AccessorySlotCategory.Face => "Face: ",
+						AccessorySlotCategory.Back => "Back: ",
+						_ => ""
+					};
+
+					// Try differential analysis first (most accurate — captures actual effects)
+					var effects = AccessoryEffectAnalyzer.Get(type);
+					if (effects != null && effects.TotalScore > 0)
+					{
+						score = effects.TotalScore;
+						string effectText = effects.GetImprovementText();
+						improvement = effectText != null
+							? $"{catPrefix}{effectText}"
+							: $"{catPrefix}Score: {(int)score}";
 					}
 					else
 					{
-						score = item.rare * 3f;
-						improvement = $"Tier {item.rare} accessory";
+						// Fallback: direct numeric fields + tooltip parsing
+						float directScore = 0f;
+						var directParts = new List<string>();
+						if (item.defense > 0)
+						{
+							directScore += item.defense * 4f;
+							directParts.Add($"+{item.defense} def");
+						}
+						if (item.lifeRegen > 0)
+						{
+							directScore += item.lifeRegen * 3f;
+							directParts.Add($"+{item.lifeRegen} regen");
+						}
+						if (item.manaIncrease > 0)
+						{
+							directScore += item.manaIncrease * 0.5f;
+							directParts.Add($"+{item.manaIncrease} mana");
+						}
+
+						float tooltipScore = ScoreAccessoryFromTooltip(item);
+						score = directScore + tooltipScore;
+
+						if (score > 0)
+							improvement = directParts.Count > 0
+								? catPrefix + string.Join(", ", directParts) + (tooltipScore > 0 ? $" (+{(int)tooltipScore})" : "")
+								: $"{catPrefix}Score: {(int)score}";
+						else
+						{
+							score = item.rare * 3f;
+							improvement = $"{catPrefix}Tier {item.rare} accessory";
+						}
 					}
 				}
 
-				if (HasSimilarAccessory(item, ownedItems))
-					score *= 0.4f;
+				// Reduce score for accessories whose effects overlap with already-owned ones
+				float marginal = AccessoryEffectAnalyzer.ComputeMarginalMultiplier(type, equippedAccessories);
+				score *= marginal;
+				if (marginal < 1f && HasSimilarAccessory(item, ownedItems))
+					score *= 0.6f; // Additional penalty if also visually similar
 			}
 
 			// Check craftability + gather ingredient details
@@ -537,5 +615,23 @@ public static class GearRecommender
 		catch { }
 
 		return score;
+	}
+
+	/// <summary>
+	/// Categorizes an accessory by its equip slot. Returns Other for accessories
+	/// with no visual slot (invisible accessories like Obsidian Rose).
+	/// </summary>
+	public static AccessorySlotCategory GetAccessoryCategory(Item item)
+	{
+		if (!item.accessory) return AccessorySlotCategory.Other;
+		if (item.wingSlot > 0) return AccessorySlotCategory.Wing;
+		if (item.shieldSlot > 0) return AccessorySlotCategory.Shield;
+		if (item.balloonSlot > 0) return AccessorySlotCategory.Balloon;
+		if (item.shoeSlot > 0) return AccessorySlotCategory.Boots;
+		if (item.neckSlot > 0) return AccessorySlotCategory.Neck;
+		if (item.handOnSlot > 0) return AccessorySlotCategory.Combat;
+		if (item.faceSlot > 0) return AccessorySlotCategory.Face;
+		if (item.backSlot > 0) return AccessorySlotCategory.Back;
+		return AccessorySlotCategory.Other;
 	}
 }

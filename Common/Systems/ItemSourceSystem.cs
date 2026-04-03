@@ -154,6 +154,9 @@ public class ItemSourceSystem : ModSystem
 		IndexShimmerDecrafting();
 
 		Mod.Logger.Info($"Indexed item sources (drops/gathering/shimmer) for {_sourcesByItem.Count} items");
+
+		AccessoryEffectAnalyzer.Initialize();
+		Mod.Logger.Info($"Analyzed {AccessoryEffectAnalyzer.Count} accessory effects via differential approach");
 	}
 
 	public override void PostAddRecipes()
@@ -169,6 +172,7 @@ public class ItemSourceSystem : ModSystem
 	public override void Unload()
 	{
 		_sourcesByItem = null;
+		AccessoryEffectAnalyzer.Unload();
 	}
 
 	private void IndexNPCDrops()
