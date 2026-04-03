@@ -358,6 +358,13 @@ public class DependencyResolver
 			if (!_worldContext.IsAvailable(EvilAffiliationMap.Get(sourceItemType)))
 				continue;
 
+			// Check shimmer decrafting locks (Post-Skeletron/Post-Golem gating)
+			if (source.Description.StartsWith("Decraft:"))
+			{
+				if (!IsDecraftingAvailable(sourceItemType))
+					continue;
+			}
+
 			// Try resolving the source item
 			var snapshot = new Dictionary<int, int>(available);
 			visited.Add(-sourceItemType);
@@ -378,6 +385,43 @@ public class DependencyResolver
 		}
 
 		return null;
+	}
+
+	/// <summary>
+	/// Checks if shimmer decrafting is available for an item based on boss progression.
+	/// Post-Skeletron recipes (containing Bone) and Post-Golem recipes (containing Beetle Husk)
+	/// are locked until those bosses are defeated.
+	/// </summary>
+	private bool IsDecraftingAvailable(int itemType)
+	{
+		try
+		{
+			var indices = ItemID.Sets.CraftingRecipeIndices[itemType];
+			if (indices == null) return true;
+
+			foreach (int idx in indices)
+			{
+				if (idx < 0 || idx >= Recipe.numRecipes) continue;
+				var recipe = Main.recipe[idx];
+				if (recipe == null || recipe.DecraftDisabled) continue;
+
+				// Check for Post-Skeletron lock (recipes containing Bone, item 154)
+				bool needsSkeletron = false;
+				bool needsGolem = false;
+				foreach (var ing in recipe.requiredItem)
+				{
+					if (ing.type == ItemID.Bone) needsSkeletron = true;
+					if (ing.type == ItemID.BeetleHusk) needsGolem = true;
+				}
+
+				if (needsSkeletron && !_worldContext.DownedSkeletron) return false;
+				if (needsGolem && !_worldContext.DownedGolem) return false;
+
+				return true; // First valid recipe found
+			}
+		}
+		catch { }
+		return true; // Default to available if check fails
 	}
 
 	/// <summary>

@@ -151,6 +151,7 @@ public class ItemSourceSystem : ModSystem
 		IndexItemDrops();
 		IndexGatheringSources();
 		IndexShimmerTransforms();
+		IndexShimmerDecrafting();
 
 		Mod.Logger.Info($"Indexed item sources (drops/gathering/shimmer) for {_sourcesByItem.Count} items");
 	}
@@ -393,15 +394,19 @@ public class ItemSourceSystem : ModSystem
 
 				// Extract price
 				string priceText = "";
+				int rawPrice = -1;
 				try
 				{
 					int price = (entry.Item.shopCustomPrice.HasValue && entry.Item.shopCustomPrice.Value > 0)
 						? entry.Item.shopCustomPrice.Value
-						: entry.Item.value / 5;
+						: entry.Item.value;
 					if (entry.Item.shopSpecialCurrency >= 0)
 						priceText = ""; // Special currency — skip coin display
 					else if (price > 0)
+					{
+						rawPrice = price;
 						priceText = $" ~{FormatCoins(price)}";
+					}
 				}
 				catch { }
 
@@ -431,7 +436,8 @@ public class ItemSourceSystem : ModSystem
 					ItemSourceType.NPCShop,
 					$"Buy: {shopOwner}{priceText}{condText}",
 					npcShop.NpcType,
-					ShopConditions: shopConds));
+					ShopConditions: shopConds,
+					ShopPrice: rawPrice));
 			}
 		}
 	}
@@ -694,6 +700,76 @@ public class ItemSourceSystem : ModSystem
 				$"Shimmer: {sourceName}",
 				sourceItem));
 		}
+	}
+
+	/// <summary>
+	/// Indexes shimmer decrafting: when an item can be shimmered, its recipe ingredients
+	/// become obtainable via "Shimmer decraft: ItemName". This provides alternative
+	/// acquisition paths for ingredients.
+	/// </summary>
+	private void IndexShimmerDecrafting()
+	{
+		var recipeIndices = ItemID.Sets.CraftingRecipeIndices;
+		if (recipeIndices == null) return;
+
+		int count = 0;
+		for (int itemType = 1; itemType < recipeIndices.Length; itemType++)
+		{
+			var indices = recipeIndices[itemType];
+			if (indices == null || indices.Length == 0)
+				continue;
+
+			// Find the first decraftable recipe for this item
+			Recipe decraftRecipe = null;
+			foreach (int idx in indices)
+			{
+				if (idx < 0 || idx >= Recipe.numRecipes) continue;
+				var recipe = Main.recipe[idx];
+				if (recipe == null || recipe.DecraftDisabled) continue;
+				decraftRecipe = recipe;
+				break;
+			}
+
+			if (decraftRecipe == null) continue;
+
+			// Check for custom shimmer results
+			if (decraftRecipe.customShimmerResults != null && decraftRecipe.customShimmerResults.Count > 0)
+			{
+				foreach (var result in decraftRecipe.customShimmerResults)
+				{
+					if (result.type <= ItemID.None) continue;
+					string itemName;
+					try { itemName = Lang.GetItemNameValue(itemType); }
+					catch { itemName = $"Item#{itemType}"; }
+
+					AddSource(result.type, new ItemSource(
+						ItemSourceType.Shimmer,
+						$"Decraft: {itemName}",
+						itemType));
+					count++;
+				}
+			}
+			else
+			{
+				// Standard decrafting: produces the recipe's ingredients
+				foreach (var ingredient in decraftRecipe.requiredItem)
+				{
+					if (ingredient.type <= ItemID.None) continue;
+
+					string itemName;
+					try { itemName = Lang.GetItemNameValue(itemType); }
+					catch { itemName = $"Item#{itemType}"; }
+
+					AddSource(ingredient.type, new ItemSource(
+						ItemSourceType.Shimmer,
+						$"Decraft: {itemName}",
+						itemType));
+					count++;
+				}
+			}
+		}
+
+		Common.Log.Info($"Indexed {count} shimmer decrafting sources");
 	}
 
 	/// <summary>Extracts NPC name from a source description like "Drop: Hornet (1/3)" → "Hornet"</summary>

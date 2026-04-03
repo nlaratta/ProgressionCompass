@@ -43,6 +43,10 @@ public readonly record struct WorldContext
 	public bool IsExpert { get; init; }
 	public bool IsMaster { get; init; }
 
+	// Boss progression (for shimmer decrafting locks)
+	public bool DownedSkeletron { get; init; }
+	public bool DownedGolem { get; init; }
+
 	public bool IsCorruption => !IsCrimson;
 	public bool HardmodeOresKnown => CobaltTier != -1;
 
@@ -63,7 +67,9 @@ public readonly record struct WorldContext
 				MythrilTier = WorldGen.SavedOreTiers.Mythril,
 				AdamantiteTier = WorldGen.SavedOreTiers.Adamantite,
 				IsExpert = Main.expertMode,
-				IsMaster = Main.masterMode
+				IsMaster = Main.masterMode,
+				DownedSkeletron = NPC.downedBoss3,
+				DownedGolem = NPC.downedGolemBoss
 			};
 		}
 		catch
