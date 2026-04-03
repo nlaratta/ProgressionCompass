@@ -122,17 +122,19 @@ public class UpgradeRecommendationsState : UIState
 }
 
 /// <summary>
-/// The upgrade recommendations panel — draggable window showing
-/// gear upgrades grouped by category (left) and source priority rankings (right).
+/// The upgrade recommendations panel — 4-column layout:
+/// Ready to Craft | Nearly Ready | Building Toward | Where to Go
 /// </summary>
 internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 {
-	// Left column: upgrade categories
-	private Terraria.GameContent.UI.Elements.UIList _list;
-	private Terraria.GameContent.UI.Elements.UIScrollbar _scrollbar;
-
-	// Right column: source priority ("Where to Go")
+	// 3 readiness columns + 1 source priority column
+	private Terraria.GameContent.UI.Elements.UIList _readyList;
+	private Terraria.GameContent.UI.Elements.UIList _nearlyList;
+	private Terraria.GameContent.UI.Elements.UIList _buildingList;
 	private Terraria.GameContent.UI.Elements.UIList _sourceList;
+	private Terraria.GameContent.UI.Elements.UIScrollbar _readyScroll;
+	private Terraria.GameContent.UI.Elements.UIScrollbar _nearlyScroll;
+	private Terraria.GameContent.UI.Elements.UIScrollbar _buildingScroll;
 	private Terraria.GameContent.UI.Elements.UIScrollbar _sourceScroll;
 
 	private UIClassFilterBar _classFilter;
@@ -144,7 +146,7 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 	private SourcePriorityResult _sourcePriority;
 	private PlayerStats _stats;
 	private List<BossInfo> _bosses;
-	private readonly Dictionary<string, bool> _collapsed = [];
+	private WorldContext _worldContext;
 
 	private UI.Elements.UIPlayerStageCard _stageCard;
 	private UI.Elements.UIBossProgressionCard _bossCard;
@@ -152,10 +154,15 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 	public event Action<int> OnAnalyzeItem;
 	public event Action OnCloseClicked;
 
-	private const float PanelW = 960f;
+	private const float PanelW = 1080f;
 	private const float PanelH = 680f;
-	private const float LeftColumnPct = 0.55f;
-	private const float DividerGap = 6f;
+
+	// Column layout: 3 narrow + 1 wide
+	private const float Col1Pct = 0.17f;   // Ready
+	private const float Col2Pct = 0.17f;   // Nearly
+	private const float Col3Pct = 0.17f;   // Building
+	// Col4 = 1 - Col1 - Col2 - Col3 = 0.49  (Where to Go)
+	private const float ColGap = 4f;
 
 	public UpgradeRecommendationsPanel()
 	{
@@ -203,8 +210,7 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		_classFilter.OnFilterChanged += newFilter =>
 		{
 			_activeFilter = newFilter;
-			RenderList();
-			RenderSourceList();
+			RenderAllColumns();
 		};
 		Append(_classFilter);
 
@@ -231,67 +237,90 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		Append(_bossCard);
 
 		listTop = 188f;
+		float headerY = listTop - 18f;
 
-		// ── Left column: Upgrades ───────────────────────────────
-		_list = new Terraria.GameContent.UI.Elements.UIList();
-		_list.Top.Set(listTop, 0f);
-		_list.Width.Set(-16f, LeftColumnPct);
-		_list.Height.Set(-(listTop + 4f), 1f);
-		_list.ListPadding = 4f;
-		_list.ManualSortMethod = _ => { };
-		Append(_list);
+		// ── Column 1: Ready to Craft ────────────────────────────
+		float c1Left = 0f;
+		(_readyList, _readyScroll) = MakeColumn(c1Left, Col1Pct, listTop);
 
-		_scrollbar = new Terraria.GameContent.UI.Elements.UIScrollbar();
-		_scrollbar.Top.Set(listTop, 0f);
-		_scrollbar.Left.Set(-14f, LeftColumnPct);
-		_scrollbar.Height.Set(-(listTop + 4f), 1f);
-		_list.SetScrollbar(_scrollbar);
-		Append(_scrollbar);
+		// ── Column 2: Nearly Ready ──────────────────────────────
+		float c2Left = Col1Pct;
+		(_nearlyList, _nearlyScroll) = MakeColumn(c2Left, Col2Pct, listTop);
 
-		// ── Right column: Where to Go ───────────────────────────
-		float rightLeft = LeftColumnPct;
-		float rightWidth = 1f - LeftColumnPct;
+		// ── Column 3: Building Toward ───────────────────────────
+		float c3Left = Col1Pct + Col2Pct;
+		(_buildingList, _buildingScroll) = MakeColumn(c3Left, Col3Pct, listTop);
 
-		// Column header
-		var sourceHeader = new Terraria.GameContent.UI.Elements.UIText("Where to Go", 0.7f);
-		sourceHeader.Top.Set(listTop - 20f, 0f);
-		sourceHeader.Left.Set(DividerGap + 4f, rightLeft);
-		Append(sourceHeader);
+		// ── Column 4: Where to Go ───────────────────────────────
+		float c4Left = Col1Pct + Col2Pct + Col3Pct;
+		float c4Width = 1f - c4Left;
+		(_sourceList, _sourceScroll) = MakeColumn(c4Left, c4Width, listTop);
 
-		_sourceList = new Terraria.GameContent.UI.Elements.UIList();
-		_sourceList.Top.Set(listTop, 0f);
-		_sourceList.Left.Set(DividerGap, rightLeft);
-		_sourceList.Width.Set(-(DividerGap + 16f), rightWidth);
-		_sourceList.Height.Set(-(listTop + 4f), 1f);
-		_sourceList.ListPadding = 4f;
-		_sourceList.ManualSortMethod = _ => { };
-		Append(_sourceList);
-
-		_sourceScroll = new Terraria.GameContent.UI.Elements.UIScrollbar();
-		_sourceScroll.Top.Set(listTop, 0f);
+		// Right-align source scrollbar to panel edge
 		_sourceScroll.Left.Set(-14f, 1f);
-		_sourceScroll.Height.Set(-(listTop + 4f), 1f);
-		_sourceList.SetScrollbar(_sourceScroll);
-		Append(_sourceScroll);
 
 		Recalculate();
+	}
+
+	private (Terraria.GameContent.UI.Elements.UIList list, Terraria.GameContent.UI.Elements.UIScrollbar scroll) MakeColumn(
+		float leftPct, float widthPct, float top)
+	{
+		var list = new Terraria.GameContent.UI.Elements.UIList();
+		list.Top.Set(top, 0f);
+		list.Left.Set(ColGap, leftPct);
+		list.Width.Set(-(ColGap + 14f), widthPct);
+		list.Height.Set(-(top + 4f), 1f);
+		list.ListPadding = 3f;
+		list.ManualSortMethod = _ => { };
+		Append(list);
+
+		var scroll = new Terraria.GameContent.UI.Elements.UIScrollbar();
+		scroll.Top.Set(top, 0f);
+		scroll.Left.Set(-(ColGap + 10f), leftPct + widthPct);
+		scroll.Height.Set(-(top + 4f), 1f);
+		list.SetScrollbar(scroll);
+		Append(scroll);
+
+		return (list, scroll);
 	}
 
 	protected override void DrawChildren(SpriteBatch spriteBatch)
 	{
 		base.DrawChildren(spriteBatch);
 
-		// Draw vertical divider between columns
+		// Draw 3 vertical dividers between the 4 columns
 		var dims = GetInnerDimensions();
-		float divX = dims.X + dims.Width * LeftColumnPct;
 		float divTop = dims.Y + 188f;
 		float divH = dims.Height - 188f - 4f;
-		spriteBatch.Draw(TextureAssets.MagicPixel.Value,
-			new Rectangle((int)divX, (int)divTop, 1, (int)divH),
-			new Color(60, 70, 130) * 0.4f);
+		Color divColor = new Color(60, 70, 130) * 0.4f;
+
+		float div1X = dims.X + dims.Width * Col1Pct;
+		float div2X = dims.X + dims.Width * (Col1Pct + Col2Pct);
+		float div3X = dims.X + dims.Width * (Col1Pct + Col2Pct + Col3Pct);
+
+		spriteBatch.Draw(TextureAssets.MagicPixel.Value, new Rectangle((int)div1X, (int)divTop, 1, (int)divH), divColor);
+		spriteBatch.Draw(TextureAssets.MagicPixel.Value, new Rectangle((int)div2X, (int)divTop, 1, (int)divH), divColor);
+		spriteBatch.Draw(TextureAssets.MagicPixel.Value, new Rectangle((int)div3X, (int)divTop, 1, (int)divH), divColor);
+
+		// Column headers (drawn over dividers for clean look)
+		float headerY = dims.Y + 188f - 18f;
+		DrawColumnHeader(spriteBatch, "Ready", dims.X, Col1Pct * dims.Width, headerY, new Color(80, 220, 80), _readyCount);
+		DrawColumnHeader(spriteBatch, "Nearly", dims.X + Col1Pct * dims.Width, Col2Pct * dims.Width, headerY, new Color(220, 200, 60), _nearlyCount);
+		DrawColumnHeader(spriteBatch, "Building", dims.X + (Col1Pct + Col2Pct) * dims.Width, Col3Pct * dims.Width, headerY, new Color(160, 160, 180), _buildingCount);
+		DrawColumnHeader(spriteBatch, "Where to Go", dims.X + (Col1Pct + Col2Pct + Col3Pct) * dims.Width, (1f - Col1Pct - Col2Pct - Col3Pct) * dims.Width, headerY, new Color(100, 160, 255), -1);
 	}
 
-	private WorldContext _worldContext;
+	private static void DrawColumnHeader(SpriteBatch spriteBatch, string label, float x, float colW, float y, Color accentColor, int count)
+	{
+		// Accent underline
+		spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+			new Rectangle((int)(x + ColGap), (int)(y + 15f), (int)(colW - ColGap * 2), 2), accentColor * 0.6f);
+
+		string text = count >= 0 ? $"{label} ({count})" : label;
+		Utils.DrawBorderString(spriteBatch, text, new Vector2(x + ColGap + 2f, y), accentColor, 0.55f);
+	}
+
+	private int _readyCount, _nearlyCount, _buildingCount;
 
 	public void SetResults(List<GearRecommendation> recs, PlayerClass filter,
 		PlayerStats stats = null, List<BossInfo> nextBosses = null,
@@ -315,30 +344,33 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		if (_classFilter != null)
 			_classFilter.SelectedClass = filter;
 		BuildLayout();
-		RenderList();
+		RenderAllColumns();
+	}
+
+	private void RenderAllColumns()
+	{
+		RenderReadinessColumns();
 		RenderSourceList();
 	}
 
-	private bool IsSectionCollapsed(string name) => _collapsed.GetValueOrDefault(name, false);
+	// ── Readiness Columns ───────────────────────────────────────
 
-	// ── Left Column: Upgrade List ───────────────────────────────
-
-	private void RenderList()
+	private void RenderReadinessColumns()
 	{
-		if (_list == null) return;
-		_list.Clear();
+		_readyList?.Clear();
+		_nearlyList?.Clear();
+		_buildingList?.Clear();
+		_readyCount = 0;
+		_nearlyCount = 0;
+		_buildingCount = 0;
 
-		if (_mergedItems == null)
+		if (_mergedItems == null || _mergedItems.Count == 0)
 		{
-			_list.Add(new UIEmptyMessage("Scanning for upgrades..."));
+			_readyList?.Add(new UIEmptyMessage("Scanning..."));
 			return;
 		}
-		if (_mergedItems.Count == 0)
-		{
-			_list.Add(new UIEmptyMessage("No upgrades available at your current tier."));
-			return;
-		}
 
+		// Filter by class
 		var filtered = new List<UpgradeItem>();
 		foreach (var upgrade in _mergedItems)
 		{
@@ -348,34 +380,36 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 			filtered.Add(upgrade);
 		}
 
-		// Group by acquisition method
-		var craftable = filtered.FindAll(r => r.Acquisition == AcquisitionMethod.Craftable);
-		var bossDrops = filtered.FindAll(r => r.Acquisition == AcquisitionMethod.BossDrop);
-		var shopItems = filtered.FindAll(r => r.Acquisition == AcquisitionMethod.Shop);
-		var mobDrops = filtered.FindAll(r => r.Acquisition == AcquisitionMethod.MobDrop);
-		var other = filtered.FindAll(r =>
-			r.Acquisition is AcquisitionMethod.Event or AcquisitionMethod.Fishing
-			or AcquisitionMethod.Exploration or AcquisitionMethod.Unknown);
-
-		if (craftable.Count > 0)
+		// Sort: Ready by score desc, Nearly/Building by completion desc
+		foreach (var upgrade in filtered)
 		{
-			AddCategorySection("Craftable Weapons", craftable.FindAll(r => r.Category == GearCategory.Weapon));
-			AddCategorySection("Craftable Armor", craftable.FindAll(r => r.Category == GearCategory.Armor));
-			AddCategorySection("Craftable Accessories", craftable.FindAll(r => r.Category == GearCategory.Accessory));
-			AddCategorySection("Craftable Tools", craftable.FindAll(r => r.Category == GearCategory.Tool));
+			switch (upgrade.Proximity)
+			{
+				case Proximity.CraftableNow:
+					_readyList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type)));
+					_readyCount++;
+					break;
+				case Proximity.AlmostReady:
+					_nearlyList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type)));
+					_nearlyCount++;
+					break;
+				case Proximity.NeedsWork:
+					_buildingList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type)));
+					_buildingCount++;
+					break;
+				// FarAway items not shown in columns
+			}
 		}
 
-		AddCategorySection("Boss Drops", bossDrops);
-		AddCategorySection("Shop Items", shopItems);
-		AddCategorySection("Mob Drops", mobDrops);
-		if (other.Count > 0)
-			AddCategorySection("Events & Other", other);
-
-		if (filtered.Count == 0)
-			_list.Add(new UIEmptyMessage("No upgrades for this class."));
+		if (_readyCount == 0)
+			_readyList?.Add(new UIEmptyMessage("None yet"));
+		if (_nearlyCount == 0)
+			_nearlyList?.Add(new UIEmptyMessage("None yet"));
+		if (_buildingCount == 0)
+			_buildingList?.Add(new UIEmptyMessage("None yet"));
 	}
 
-	// ── Right Column: Source Priority List ───────────────────────
+	// ── Source Priority Column ───────────────────────────────────
 
 	private void RenderSourceList()
 	{
@@ -388,10 +422,8 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 			return;
 		}
 
-		// Filter rankings to only show locations relevant to current class filter
 		foreach (var ranking in _sourcePriority.Rankings)
 		{
-			// Check if any drop in this location feeds an upgrade matching the class filter
 			if (_activeFilter != PlayerClass.Mixed && _mergedItems != null)
 			{
 				bool hasRelevant = false;
@@ -416,50 +448,6 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 
 		if (_sourceList.Count == 0)
 			_sourceList.Add(new UIEmptyMessage("No locations for this class."));
-	}
-
-	private const int InitialShowCount = 8;
-	private readonly Dictionary<string, bool> _showAll = [];
-
-	private void AddCategorySection(string name, List<UpgradeItem> items)
-	{
-		if (items.Count == 0) return;
-
-		bool collapsed = IsSectionCollapsed(name);
-		string headerText = $"{name} ({items.Count})";
-		_list.Add(new UI.Panels.UIDashboardSectionHeader(headerText, collapsed, () =>
-		{
-			_collapsed[name] = !collapsed;
-			RenderList();
-		}));
-
-		if (collapsed) return;
-
-		bool showAll = _showAll.GetValueOrDefault(name, false);
-		int limit = showAll ? items.Count : Math.Min(items.Count, InitialShowCount);
-
-		for (int i = 0; i < limit; i++)
-			_list.Add(new UIUpgradeItemRow(items[i], type => OnAnalyzeItem?.Invoke(type)));
-
-		if (!showAll && items.Count > InitialShowCount)
-		{
-			int remaining = items.Count - InitialShowCount;
-			var showMoreBtn = new UIShowMoreButton($"Show {remaining} more...", () =>
-			{
-				_showAll[name] = true;
-				RenderList();
-			});
-			_list.Add(showMoreBtn);
-		}
-		else if (showAll && items.Count > InitialShowCount)
-		{
-			var showLessBtn = new UIShowMoreButton("Show less", () =>
-			{
-				_showAll[name] = false;
-				RenderList();
-			});
-			_list.Add(showLessBtn);
-		}
 	}
 }
 
