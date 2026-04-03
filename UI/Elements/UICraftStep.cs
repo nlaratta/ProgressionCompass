@@ -19,10 +19,24 @@ public class UICraftStep : UIElement
 {
 	private readonly CraftStep _step;
 	private readonly Item _outputItem;
+	private readonly int _totalSteps;
+	private readonly bool _allInputsReady;
 
-	public UICraftStep(CraftStep step)
+	public UICraftStep(CraftStep step, int totalSteps = 0)
 	{
 		_step = step;
+		_totalSteps = totalSteps;
+
+		// Check if all inputs are ready (owned or from previous step)
+		_allInputsReady = true;
+		foreach (var input in step.Inputs)
+		{
+			if (input.Source == CraftStepInputSource.NeedToAcquire)
+			{
+				_allInputsReady = false;
+				break;
+			}
+		}
 		_outputItem = new Item();
 		if (step.ItemType > ItemID.None)
 			_outputItem.SetDefaults(step.ItemType);
@@ -60,10 +74,17 @@ public class UICraftStep : UIElement
 		var divider = new Rectangle((int)dims.X + 4, (int)dims.Y, (int)dims.Width - 8, 1);
 		spriteBatch.Draw(TextureAssets.MagicPixel.Value, divider, new Color(60, 70, 120) * 0.5f);
 
-		// Step number
-		string stepLabel = $"Step {_step.StepNumber}:";
-		Utils.DrawBorderString(spriteBatch, stepLabel, new Vector2(x + 4f, y + 4f), Color.Gold, 0.8f);
-		float stepWidth = FontAssets.MouseText.Value.MeasureString(stepLabel).X * 0.8f;
+		// Status dot (green = all inputs ready, orange = needs acquisition)
+		Color dotColor = _allInputsReady ? new Color(80, 220, 80) : new Color(220, 160, 60);
+		spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+			new Rectangle((int)(x + 4f), (int)(y + 9f), 6, 6), dotColor);
+
+		// Step number with total
+		string stepLabel = _totalSteps > 0
+			? $"Step {_step.StepNumber}/{_totalSteps}:"
+			: $"Step {_step.StepNumber}:";
+		Utils.DrawBorderString(spriteBatch, stepLabel, new Vector2(x + 14f, y + 4f), Color.Gold, 0.8f);
+		float stepWidth = FontAssets.MouseText.Value.MeasureString(stepLabel).X * 0.8f + 10f;
 
 		// Output item icon
 		float iconX = x + stepWidth + 12f;

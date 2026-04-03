@@ -59,7 +59,8 @@ public class CraftOrderPanel : UIElement
 			return;
 		}
 
+		int totalSteps = result.CraftOrder.Count;
 		foreach (var step in result.CraftOrder)
-			_list.Add(new UICraftStep(step));
+			_list.Add(new UICraftStep(step, totalSteps));
 	}
 }

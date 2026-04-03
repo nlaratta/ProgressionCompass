@@ -183,8 +183,10 @@ public class UITreeRow : UIElement
 			// Recipe alternatives indicator
 			if (craftNode.HasAlternatives)
 			{
-				string altText = $"(Recipe {craftNode.SelectedAlternative + 1}/{craftNode.AlternativeCount})";
 				bool hoverAlt = IsMouseHovering;
+				string altText = $"(Recipe {craftNode.SelectedAlternative + 1}/{craftNode.AlternativeCount})";
+				if (hoverAlt)
+					altText += " Right-click to change";
 				Color altColor = hoverAlt ? new Color(120, 200, 255) : new Color(80, 150, 200);
 				Utils.DrawBorderString(spriteBatch, altText,
 					new Vector2(afterLabel, textY + 2f), altColor, 0.55f);

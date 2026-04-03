@@ -250,7 +250,7 @@ public class UIUpgradeItemRow : UIElement
                 if (srcDesc.Length > 22) srcDesc = srcDesc[..21] + "..";
                 Color srcColor = UIHelper.GetSourceColor(best.Type);
                 Utils.DrawBorderString(spriteBatch, srcDesc,
-                    new Vector2(x + 50f + textW, missingY), srcColor, 0.4f);
+                    new Vector2(x + 50f + textW, missingY), srcColor, 0.5f);
             }
 
             missingY += 14f;

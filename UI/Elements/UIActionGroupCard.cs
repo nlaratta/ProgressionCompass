@@ -84,7 +84,7 @@ public class UIActionGroupCard : UIElement
 			if (item.GoalAttribution != null)
 			{
 				Utils.DrawBorderString(spriteBatch, item.GoalAttribution,
-					new Vector2(x + 36f, itemY), new Color(140, 140, 170), 0.45f);
+					new Vector2(x + 36f, itemY), new Color(140, 140, 170), 0.5f);
 				itemY += 14f;
 			}
 

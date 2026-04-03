@@ -119,15 +119,15 @@ public class UIBossProgressionCard : UIElement
 		string infoLine = boss.SummonHint ?? "";
 		if (!string.IsNullOrEmpty(boss.Location))
 			infoLine += $" — {boss.Location}";
-		Utils.DrawBorderString(spriteBatch, infoLine, new Vector2(textX, y + 14f), Color.Gray, 0.42f);
+		Utils.DrawBorderString(spriteBatch, infoLine, new Vector2(textX, y + 14f), Color.Gray, 0.5f);
 
 		// Unlocks (if any)
 		if (!string.IsNullOrEmpty(boss.Unlocks))
 		{
-			float unlockX = textX + FontAssets.MouseText.Value.MeasureString(infoLine).X * 0.42f + 8f;
+			float unlockX = textX + FontAssets.MouseText.Value.MeasureString(infoLine).X * 0.5f + 8f;
 			if (unlockX < x + width - 50f)
 				Utils.DrawBorderString(spriteBatch, $"Unlocks: {boss.Unlocks}",
-					new Vector2(textX, y + 24f), new Color(100, 200, 100), 0.4f);
+					new Vector2(textX, y + 24f), new Color(100, 200, 100), 0.5f);
 		}
 	}
 }

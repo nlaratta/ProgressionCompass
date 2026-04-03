@@ -114,7 +114,7 @@ public class UICompactUpgradeCard : UIElement
 			// Percentage text (right of bar)
 			string pctText = $"{_item.CompletionPercent:F0}%";
 			Utils.DrawBorderString(spriteBatch, pctText,
-				new Vector2(barX + barW + 4f, row2Y - 1f), barColor, 0.45f);
+				new Vector2(barX + barW + 4f, row2Y - 1f), barColor, 0.5f);
 		}
 
 		// Row 3: Source hint (small, gray)
@@ -123,7 +123,7 @@ public class UICompactUpgradeCard : UIElement
 			float row3Y = y + 34f;
 			string hint = _sourceHint.Length > 28 ? _sourceHint[..27] + ".." : _sourceHint;
 			Utils.DrawBorderString(spriteBatch, hint,
-				new Vector2(textX, row3Y), Color.Gray, 0.4f);
+				new Vector2(textX, row3Y), Color.Gray, 0.5f);
 		}
 	}
 

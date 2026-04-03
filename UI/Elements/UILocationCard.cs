@@ -107,7 +107,7 @@ public class UILocationCard : UIElement
 		if (!string.IsNullOrEmpty(_ranking.ContextHint))
 		{
 			Utils.DrawBorderString(spriteBatch, _ranking.ContextHint,
-				new Vector2(cx, cy), new Color(160, 160, 190), 0.45f);
+				new Vector2(cx, cy), new Color(160, 160, 190), 0.5f);
 			cy += HintH;
 		}
 
@@ -210,7 +210,7 @@ public class UILocationCard : UIElement
 
 	private static void DrawUpgradeAttribution(SpriteBatch spriteBatch, UpgradeDisplayEntry entry, float x, float y, float width)
 	{
-		Utils.DrawBorderString(spriteBatch, "->", new Vector2(x, y), new Color(80, 90, 120), 0.45f);
+		Utils.DrawBorderString(spriteBatch, "->", new Vector2(x, y), new Color(80, 90, 120), 0.5f);
 		UIHelper.DrawItemIcon(spriteBatch, entry.ItemType, new Vector2(x + 16f, y), 14f);
 
 		Color pctColor = entry.Proximity switch
@@ -220,7 +220,7 @@ public class UILocationCard : UIElement
 			_ => new Color(160, 160, 180)
 		};
 		string text = $"{entry.Name} ({entry.CompletionPercent:F0}%)";
-		Utils.DrawBorderString(spriteBatch, text, new Vector2(x + 34f, y), pctColor, 0.45f);
+		Utils.DrawBorderString(spriteBatch, text, new Vector2(x + 34f, y), pctColor, 0.5f);
 	}
 
 	// ── Helpers ──────────────────────────────────────────────────

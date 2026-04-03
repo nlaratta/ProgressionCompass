@@ -424,23 +424,11 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		foreach (var (ingType, needed, owned) in item.Ingredients)
 		{
 			if (owned <= 0) continue;
-			if (!_trivialMaterials.Contains(ingType))
+			if (!global::ProgressionCompass.UI.UIHelper.TrivialMaterials.Contains(ingType))
 				return true;
 		}
 		return false;
 	}
-
-	private static readonly HashSet<int> _trivialMaterials =
-	[
-		ItemID.Wood, ItemID.StoneBlock, ItemID.DirtBlock, ItemID.Gel,
-		ItemID.SandBlock, ItemID.ClayBlock, ItemID.MudBlock, ItemID.Torch,
-		ItemID.Cobweb, ItemID.Lens, ItemID.FallenStar,
-		ItemID.Acorn, ItemID.Daybloom, ItemID.Blinkroot, ItemID.Moonglow,
-		ItemID.Waterleaf, ItemID.Deathweed, ItemID.Shiverthorn,
-		ItemID.BottledWater, ItemID.Mushroom, ItemID.GlowingMushroom,
-		ItemID.Snowball, ItemID.IceBlock,
-		ItemID.RopeCoil, ItemID.Chain
-	];
 
 	// ── Source Priority Column ───────────────────────────────────
 

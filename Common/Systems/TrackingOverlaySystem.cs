@@ -362,7 +362,7 @@ public class TrackingOverlayState : UIState
 						? UIHelper.GetSourceColor(actionItem.Source.Type)
 						: new Color(120, 120, 150);
 					Utils.DrawBorderString(spriteBatch, howTo,
-						new Vector2(px + 18f, y + 15f), howToColor, 0.42f);
+						new Vector2(px + 18f, y + 15f), howToColor, 0.5f);
 				}
 
 				y += 30f;
