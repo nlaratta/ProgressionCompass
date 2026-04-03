@@ -19,7 +19,7 @@ public static class SourcePriorityAnalyzer
 	/// Runs synchronously — all inputs are pre-computed by the async progress scan.
 	/// </summary>
 	public static SourcePriorityResult Analyze(List<UpgradeItem> upgrades, ItemSourceSystem sourceSystem,
-		WorldContext worldContext = default)
+		WorldContext worldContext = default, EffortAnalyzer effortAnalyzer = null)
 	{
 		if (upgrades == null || upgrades.Count == 0 || sourceSystem == null)
 			return new SourcePriorityResult { TotalUpgradesAnalyzed = 0 };
@@ -92,7 +92,7 @@ public static class SourcePriorityAnalyzer
 			// Consider all sources for location coverage, use best for scoring
 			foreach (var source in sources)
 			{
-				float dropScore = ComputeDropScore(source, contributions);
+				float dropScore = ComputeDropScore(source, contributions, effortAnalyzer);
 				if (dropScore <= 0f)
 					continue;
 
@@ -196,9 +196,19 @@ public static class SourcePriorityAnalyzer
 
 	// ── Scoring ─────────────────────────────────────────────────
 
-	private static float ComputeDropScore(ItemSource source, List<UpgradeContribution> contributions)
+	private static float ComputeDropScore(ItemSource source, List<UpgradeContribution> contributions,
+		EffortAnalyzer effortAnalyzer = null)
 	{
 		float accessibility = GetAccessibilityMultiplier(source);
+
+		// If we have effort data, apply travel/block penalty from the source
+		if (effortAnalyzer != null && source.SourceEntityId > 0)
+		{
+			var effort = effortAnalyzer.GetEffort(source.SourceEntityId);
+			if (effort.IsBlocked) accessibility *= 0.2f;
+			accessibility /= effort.TravelPenalty;
+		}
+
 		float total = 0f;
 
 		foreach (var c in contributions)

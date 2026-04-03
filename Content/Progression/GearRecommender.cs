@@ -96,7 +96,8 @@ public static class GearRecommender
 		ItemSourceSystem sourceSystem,
 		Dictionary<int, InventoryEntry> inventory,
 		bool includeChests,
-		WorldContext worldContext = default)
+		WorldContext worldContext = default,
+		EffortAnalyzer effortAnalyzer = null)
 	{
 		var stats = ComputePlayerStats(inventory, includeChests, currentArmorDefense);
 		int bestMeleeDmg = stats.BestMeleeDmg;
@@ -201,6 +202,18 @@ public static class GearRecommender
 				var result = ScoreAccessory(item, type, stats, equippedAccessories, ownedItems);
 				if (result == null) continue;
 				(score, improvement) = result.Value;
+			}
+
+			// Apply effort discount: harder-to-obtain items score lower
+			if (effortAnalyzer != null)
+			{
+				var effort = effortAnalyzer.GetEffort(type);
+				// Same upgrade that's 10x harder = 1/sqrt(10) ≈ 0.32x score
+				float effortDiscount = 1f / MathF.Sqrt(1f + effort.Effective / 10f);
+				score *= effortDiscount;
+				// Blocked items get additional heavy penalty
+				if (effort.IsBlocked)
+					score *= 0.1f;
 			}
 
 			// Basic recipe check (for HasRecipe flag only — resolver handles the rest)

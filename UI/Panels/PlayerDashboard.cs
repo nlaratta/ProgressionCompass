@@ -60,7 +60,8 @@ public class PlayerDashboard : UIElement
 		_mergedItems = UpgradeItemBuilder.Build(
 			result?.Recommendations,
 			result?.Combinations,
-			itemType => IsItemTracked?.Invoke(itemType) ?? false);
+			itemType => IsItemTracked?.Invoke(itemType) ?? false,
+			result?.Effort);
 
 		// Debug: log what we got
 		int recCount = result?.Recommendations?.Count ?? 0;
@@ -90,29 +91,6 @@ public class PlayerDashboard : UIElement
 			else
 				_list.Add(new UIEmptyMessage("Gather materials to see craftable upgrades here."));
 		}
-	}
-
-	/// <summary>
-	/// For small recipes (≤2 leaf materials), checks if the player's owned materials
-	/// represent meaningful progress — not just owning trivial common materials.
-	/// With tree-based data, checks that at least one missing item is non-trivial.
-	/// </summary>
-	private static bool HasMeaningfulProgress(UpgradeItem item)
-	{
-		// If we have tree data: owned at least one non-trivial material
-		if (item.LeafMaterialsTotal > 0 && item.LeafMaterialsOwned > 0)
-		{
-			// Check that what we're MISSING isn't all trivial (i.e., what we own is meaningful)
-			if (item.MissingItems == null || item.MissingItems.Count == 0)
-				return true; // Nothing missing = definitely meaningful
-			// If all missing items are trivial, then what we own is the non-trivial part
-			foreach (var (matType, _) in item.MissingItems)
-				if (!UIHelper.TrivialMaterials.Contains(matType))
-					return true; // At least one non-trivial item is still missing AND we have progress
-			// All missing items are trivial → we only own trivial stuff → not meaningful
-			return false;
-		}
-		return false;
 	}
 
 	private bool IsSectionCollapsed(string name) => _collapsed.GetValueOrDefault(name, false);
@@ -167,10 +145,7 @@ public class PlayerDashboard : UIElement
 	{
 		if (_mergedItems == null) return;
 
-		var almost = _mergedItems.FindAll(i =>
-			i.Proximity == Proximity.AlmostReady
-			// For small recipes, require owning a non-trivial material
-			&& (i.LeafMaterialsTotal > 3 || HasMeaningfulProgress(i)));
+		var almost = _mergedItems.FindAll(i => i.Proximity == Proximity.AlmostReady);
 		if (almost.Count == 0) return;
 
 		almost.Sort((a, b) => b.CompletionPercent.CompareTo(a.CompletionPercent));
@@ -199,9 +174,7 @@ public class PlayerDashboard : UIElement
 
 		var building = _mergedItems.FindAll(i =>
 			i.Proximity is Proximity.NeedsWork or Proximity.FarAway
-			&& i.CompletionPercent >= 40f
-			// For small recipes, require owning a non-trivial material
-			&& (i.LeafMaterialsTotal > 3 || HasMeaningfulProgress(i)));
+			&& i.CompletionPercent >= ScoringConstants.NeedsWorkThreshold);
 		if (building.Count == 0) return;
 
 		building.Sort((a, b) => b.CompletionPercent.CompareTo(a.CompletionPercent));

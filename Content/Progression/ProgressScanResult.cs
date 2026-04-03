@@ -15,6 +15,9 @@ public class ProgressScanResult
 	public List<BossInfo> NextBosses;
 	public WorldContext WorldContext;
 
+	/// <summary>Effort analyzer for scoring acquisition difficulty.</summary>
+	public EffortAnalyzer Effort;
+
 	/// <summary>Version at which this result was computed. Stale if < CacheVersion.Current.</summary>
 	public long Version;
 }

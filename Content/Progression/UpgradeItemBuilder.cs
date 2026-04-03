@@ -12,7 +12,8 @@ public static class UpgradeItemBuilder
     public static List<UpgradeItem> Build(
         List<GearRecommendation> recommendations,
         List<CombinationResult> combinations,
-        Func<int, bool> isTracked = null)
+        Func<int, bool> isTracked = null,
+        EffortAnalyzer effortAnalyzer = null)
     {
         var result = new List<UpgradeItem>();
         var seen = new HashSet<int>();
@@ -32,7 +33,7 @@ public static class UpgradeItemBuilder
             {
                 seen.Add(rec.ItemType);
                 comboByType.TryGetValue(rec.ItemType, out var combo);
-                result.Add(MergeRecWithCombo(rec, combo, isTracked));
+                result.Add(MergeRecWithCombo(rec, combo, isTracked, effortAnalyzer));
             }
         }
 
@@ -43,7 +44,7 @@ public static class UpgradeItemBuilder
             {
                 if (seen.Contains(combo.ItemType))
                     continue;
-                result.Add(FromComboOnly(combo, isTracked));
+                result.Add(FromComboOnly(combo, isTracked, effortAnalyzer));
             }
         }
 
@@ -58,7 +59,8 @@ public static class UpgradeItemBuilder
     private static UpgradeItem MergeRecWithCombo(
         GearRecommendation rec,
         CombinationResult combo,
-        Func<int, bool> isTracked)
+        Func<int, bool> isTracked,
+        EffortAnalyzer effortAnalyzer)
     {
         int leafOwned, leafTotal;
         List<(int, int)> missing;
@@ -72,11 +74,11 @@ public static class UpgradeItemBuilder
             leafTotal = combo.LeafMaterialsTotal;
             missing = combo.MissingItems ?? [];
             milestones = combo.ReadyMilestones ?? [];
-            prox = ProximityFromCompletion(combo.CompletionPercent, combo.LeafMaterialsTotal);
+            float remainingEffort = effortAnalyzer?.TotalRemainingEffort(missing) ?? -1f;
+            prox = ProximityFromCompletion(combo.CompletionPercent, combo.LeafMaterialsTotal, remainingEffort);
         }
         else
         {
-            // No resolver data (item couldn't be resolved) — minimal fallback
             leafOwned = 0;
             leafTotal = 0;
             missing = [];
@@ -107,7 +109,7 @@ public static class UpgradeItemBuilder
     /// Creates an UpgradeItem from a CombinationResult with no GearRecommendation match.
     /// These are combination items (accessories, weapons) the player can build toward.
     /// </summary>
-    private static UpgradeItem FromComboOnly(CombinationResult combo, Func<int, bool> isTracked)
+    private static UpgradeItem FromComboOnly(CombinationResult combo, Func<int, bool> isTracked, EffortAnalyzer effortAnalyzer)
     {
         // Determine category from combo flags
         var category = combo.IsWeapon ? GearCategory.Weapon
@@ -131,26 +133,36 @@ public static class UpgradeItemBuilder
             MissingItems = combo.MissingItems ?? [],
             ReadyMilestones = combo.ReadyMilestones ?? [],
             HasRecipe = true,
-            Proximity = ProximityFromCompletion(combo.CompletionPercent, combo.LeafMaterialsTotal),
+            Proximity = ProximityFromCompletion(combo.CompletionPercent, combo.LeafMaterialsTotal,
+                effortAnalyzer?.TotalRemainingEffort(combo.MissingItems) ?? -1f),
             IsTracked = isTracked?.Invoke(combo.ItemType) ?? false
         };
     }
 
     /// <summary>
-    /// Derives Proximity from tree-based completion percentage.
+    /// Derives Proximity from completion % and remaining effort.
+    /// If remaining effort is trivial, boosts toward AlmostReady.
     /// </summary>
-    public static Proximity ProximityFromCompletion(float completionPercent, int totalMaterials = 0)
+    public static Proximity ProximityFromCompletion(
+        float completionPercent, int totalMaterials = 0, float remainingEffort = -1f)
     {
         if (completionPercent >= ScoringConstants.CraftableNowThreshold) return Proximity.CraftableNow;
 
-        // For small recipes (≤3 materials), use a lower threshold for AlmostReady.
-        // 2/3 = 66% should be "almost ready", not "building toward".
-        float almostThreshold = totalMaterials > 0 && totalMaterials <= 3
-            ? ScoringConstants.NeedsWorkThreshold + 10f  // 50% for small recipes
-            : ScoringConstants.AlmostReadyThreshold;     // 80% for large recipes
+        // Effort-adjusted completion: if remaining materials are trivial (low effort),
+        // boost the apparent completion. This replaces the hardcoded sliding threshold.
+        float adjustedCompletion = completionPercent;
+        if (remainingEffort >= 0f && completionPercent > 0f)
+        {
+            // Trivial remaining effort (<5) boosts completion by up to 30%
+            // High remaining effort (>50) reduces by up to 20%
+            float effortBonus = remainingEffort < 5f ? 30f * (1f - remainingEffort / 5f)
+                : remainingEffort > 50f ? -20f * Math.Min((remainingEffort - 50f) / 100f, 1f)
+                : 0f;
+            adjustedCompletion = Math.Clamp(completionPercent + effortBonus, 0f, 99.9f);
+        }
 
-        if (completionPercent >= almostThreshold) return Proximity.AlmostReady;
-        if (completionPercent >= ScoringConstants.NeedsWorkThreshold) return Proximity.NeedsWork;
+        if (adjustedCompletion >= ScoringConstants.AlmostReadyThreshold) return Proximity.AlmostReady;
+        if (adjustedCompletion >= ScoringConstants.NeedsWorkThreshold) return Proximity.NeedsWork;
         return Proximity.FarAway;
     }
 

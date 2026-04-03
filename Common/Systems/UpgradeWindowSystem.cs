@@ -116,10 +116,11 @@ public class UpgradeRecommendationsState : UIState
 	public void SetResults(List<GearRecommendation> recs, PlayerClass filter,
 		PlayerStats stats = null, List<BossInfo> nextBosses = null,
 		List<CombinationResult> combos = null,
-		WorldContext worldContext = default)
+		WorldContext worldContext = default,
+		EffortAnalyzer effortAnalyzer = null)
 	{
 		if (_panel != null)
-			_panel.SetResults(recs, filter, stats, nextBosses, combos, worldContext);
+			_panel.SetResults(recs, filter, stats, nextBosses, combos, worldContext, effortAnalyzer);
 	}
 }
 
@@ -334,11 +335,12 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 	public void SetResults(List<GearRecommendation> recs, PlayerClass filter,
 		PlayerStats stats = null, List<BossInfo> nextBosses = null,
 		List<CombinationResult> combos = null,
-		WorldContext worldContext = default)
+		WorldContext worldContext = default,
+		EffortAnalyzer effortAnalyzer = null)
 	{
 		_allRecs = recs;
 		_allCombos = combos;
-		_mergedItems = UpgradeItemBuilder.Build(recs, combos);
+		_mergedItems = UpgradeItemBuilder.Build(recs, combos, effortAnalyzer: effortAnalyzer);
 		_activeFilter = filter;
 		_stats = stats;
 		_bosses = nextBosses;
@@ -347,7 +349,7 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		// Compute source priorities from merged upgrades
 		var sourceSystem = ModContent.GetInstance<ItemSourceSystem>();
 		_sourcePriority = _mergedItems != null && sourceSystem != null
-			? SourcePriorityAnalyzer.Analyze(_mergedItems, sourceSystem, worldContext)
+			? SourcePriorityAnalyzer.Analyze(_mergedItems, sourceSystem, worldContext, effortAnalyzer)
 			: null;
 
 		if (_classFilter != null)
@@ -392,15 +394,6 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		// Distribute into readiness columns
 		foreach (var upgrade in filtered)
 		{
-			// For small recipes (≤3 leaf materials), require owning at least
-			// one non-trivial material to appear in ANY column. This prevents
-			// "Iron Hammer" (have Wood, need Iron Bar) from flooding Building
-			// while allowing "Finch Staff" (have the rare ingredient) to show.
-			if (upgrade.Proximity != Proximity.CraftableNow
-				&& upgrade.LeafMaterialsTotal <= 3
-				&& !HasMeaningfulProgress(upgrade))
-				continue;
-
 			switch (upgrade.Proximity)
 			{
 				case Proximity.CraftableNow:
@@ -424,20 +417,6 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 			_nearlyList?.Add(new UIEmptyMessage("None yet"));
 		if (_buildingCount == 0)
 			_buildingList?.Add(new UIEmptyMessage("None yet"));
-	}
-
-	private static bool HasMeaningfulProgress(UpgradeItem item)
-	{
-		if (item.LeafMaterialsTotal > 0 && item.LeafMaterialsOwned > 0)
-		{
-			if (item.MissingItems == null || item.MissingItems.Count == 0)
-				return true;
-			foreach (var (matType, _) in item.MissingItems)
-				if (!global::ProgressionCompass.UI.UIHelper.TrivialMaterials.Contains(matType))
-					return true;
-			return false;
-		}
-		return false;
 	}
 
 	private UICompactUpgradeCard MakeUpgradeCard(UpgradeItem upgrade)

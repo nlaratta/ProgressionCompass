@@ -371,7 +371,8 @@ public class CraftPathState : UIState
 				_cachedProgressResult?.Stats,
 				_cachedProgressResult?.NextBosses,
 				_cachedProgressResult?.Combinations,
-				_cachedProgressResult?.WorldContext ?? default);
+				_cachedProgressResult?.WorldContext ?? default,
+				_cachedProgressResult?.Effort);
 
 			system.WindowState.OnAnalyzeItem -= OnDashboardAnalyze;
 			system.WindowState.OnAnalyzeItem += OnDashboardAnalyze;
@@ -466,8 +467,9 @@ public class CraftPathState : UIState
 			try
 			{
 				var invCopy = new Dictionary<int, InventoryEntry>(snap.Inventory);
+				var effort = new global::ProgressionCompass.Content.Progression.EffortAnalyzer(sourceSystem, snap.World);
 				var combos = CombinationScanner.Scan(recipeIndex, sourceSystem, invCopy, snap.IncludeChests, snap.PlayerTier, snap.World);
-				var recs = GearRecommender.Recommend(snap.ArmorDefense, PlayerClass.Mixed, snap.PlayerTier, recipeIndex, sourceSystem, invCopy, snap.IncludeChests, snap.World);
+				var recs = GearRecommender.Recommend(snap.ArmorDefense, PlayerClass.Mixed, snap.PlayerTier, recipeIndex, sourceSystem, invCopy, snap.IncludeChests, snap.World, effort);
 
 				// Resolve each recommended item not already covered by CombinationScanner
 				var comboTypes = new HashSet<int>();
@@ -523,6 +525,7 @@ public class CraftPathState : UIState
 					Stats = snap.Stats,
 					NextBosses = nextBosses,
 					WorldContext = snap.World,
+					Effort = effort,
 					Version = global::ProgressionCompass.Content.Progression.CacheVersion.Current
 				};
 			}
