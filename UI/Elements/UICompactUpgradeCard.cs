@@ -94,13 +94,29 @@ public class UICompactUpgradeCard : UIElement
 			OnHoverEnd?.Invoke();
 		_wasHovering = hover;
 
-		// Background (with highlight border)
-		Color bg = hover ? new Color(40, 50, 80) * 0.7f
+		// Rarity-driven visual intensity
+		int rarity = _displayItem.rare;
+		Color rarityColor = UIHelper.GetRarityColor(rarity);
+		float intensity = Math.Clamp(rarity / 9f, 0f, 1f);
+
+		// Background: tinted with rarity color at higher rarities
+		Color baseBg = hover ? new Color(40, 50, 80) * 0.7f
 			: highlighted ? new Color(50, 60, 100) * 0.6f
 			: new Color(30, 35, 60) * 0.5f;
+		Color tintBg = new(
+			(int)(rarityColor.R * 0.12f),
+			(int)(rarityColor.G * 0.12f),
+			(int)(rarityColor.B * 0.12f));
+		Color bg = Color.Lerp(baseBg, tintBg, intensity * 0.5f);
 		spriteBatch.Draw(TextureAssets.MagicPixel.Value, dims.ToRectangle(), bg);
+
+		// Rarity-colored border: opacity scales with tier
+		float borderOpacity = 0.15f + intensity * 0.45f;
+		UIHelper.DrawBorder(spriteBatch, dims.ToRectangle(), rarityColor * borderOpacity);
 		if (highlighted)
-			UIHelper.DrawBorder(spriteBatch, dims.ToRectangle(), new Color(100, 160, 255) * 0.5f);
+			UIHelper.DrawBorder(spriteBatch,
+				new Rectangle((int)x + 1, (int)y + 1, (int)w - 2, (int)CardHeight - 2),
+				new Color(100, 160, 255) * 0.5f);
 
 		// Pin button (top-right corner)
 		if (_onPin != null)
@@ -115,23 +131,24 @@ public class UICompactUpgradeCard : UIElement
 			Utils.DrawBorderString(spriteBatch, pinText, new Vector2(pinX + 2f, pinY), pinColor, 0.6f);
 		}
 
-		// Rarity accent (left 3px bar)
-		Color rarityColor = UIHelper.GetRarityColor(_displayItem.rare);
+		// Left accent bar: thicker for higher rarity
+		int accentWidth = 3 + (int)(intensity * 2f);
 		spriteBatch.Draw(TextureAssets.MagicPixel.Value,
-			new Rectangle((int)x, (int)y, 3, (int)CardHeight), rarityColor * 0.8f);
+			new Rectangle((int)x, (int)y, accentWidth, (int)CardHeight), rarityColor * 0.9f);
 
 		// Item icon
 		float iconX = x + 6f;
 		float iconY = y + 4f;
 		UIHelper.DrawItemIcon(spriteBatch, _item.ItemType, new Vector2(iconX, iconY), 20f);
 
-		// Item name (truncated to fit)
+		// Item name (truncated, tinted by rarity at higher tiers)
 		float textX = iconX + 24f;
 		string name = _displayItem.Name ?? "Unknown";
 		float maxNameWidth = w - 34f;
 		string displayName = TruncateName(name, maxNameWidth, 0.55f);
+		Color nameColor = Color.Lerp(Color.White, rarityColor, intensity * 0.4f);
 		Utils.DrawBorderString(spriteBatch, displayName,
-			new Vector2(textX, y + 3f), Color.White, 0.55f);
+			new Vector2(textX, y + 3f), nameColor, 0.55f);
 
 		// Row 2: Progress bar or CRAFT! badge
 		float row2Y = y + 20f;
