@@ -112,23 +112,58 @@ public class UITierGroupCard : UIElement
 			OnHoverEnd?.Invoke();
 		_wasHovering = hover;
 
-		// Background
-		Color bg = hover ? new Color(40, 50, 80) * 0.7f
+		// Rarity-driven visual intensity: higher tier = more prominent card
+		int rarity = ContentSamples.ItemsByType.GetValueOrDefault(_barItemType)?.rare ?? 0;
+		Color rarityColor = UIHelper.GetRarityColor(rarity);
+
+		// Tier intensity: rarity 0 = subtle, rarity 9+ = vivid
+		float intensity = Math.Clamp(rarity / 9f, 0f, 1f);
+
+		// Background: tinted with rarity color at higher tiers
+		Color baseBg = hover ? new Color(40, 50, 80) * 0.7f
 			: highlighted ? new Color(50, 60, 100) * 0.6f
 			: new Color(30, 35, 60) * 0.5f;
+		// Blend base bg with rarity-tinted bg based on intensity
+		Color tintBg = new(
+			(int)(rarityColor.R * 0.15f),
+			(int)(rarityColor.G * 0.15f),
+			(int)(rarityColor.B * 0.15f));
+		Color bg = Color.Lerp(baseBg, tintBg, intensity * 0.6f);
 		spriteBatch.Draw(TextureAssets.MagicPixel.Value, dims.ToRectangle(), bg);
-		if (highlighted)
-			UIHelper.DrawBorder(spriteBatch, dims.ToRectangle(), new Color(100, 160, 255) * 0.5f);
 
-		// Ore accent bar (left 3px)
-		Color oreColor = UIHelper.GetRarityColor(
-			ContentSamples.ItemsByType.GetValueOrDefault(_barItemType)?.rare ?? 0);
+		// Full border: rarity-colored, opacity scales with tier
+		float borderOpacity = 0.2f + intensity * 0.5f; // 0.2 at tier 0, 0.7 at tier 9
+		UIHelper.DrawBorder(spriteBatch, dims.ToRectangle(), rarityColor * borderOpacity);
+		if (highlighted)
+			UIHelper.DrawBorder(spriteBatch,
+				new Rectangle((int)x + 1, (int)y + 1, (int)w - 2, (int)dims.Height - 2),
+				new Color(100, 160, 255) * 0.5f);
+
+		// Left accent bar: thicker for higher tiers (3px base + up to 2px)
+		int accentWidth = 3 + (int)(intensity * 2f);
 		spriteBatch.Draw(TextureAssets.MagicPixel.Value,
-			new Rectangle((int)x, (int)y, 3, (int)dims.Height), oreColor * 0.8f);
+			new Rectangle((int)x, (int)y, accentWidth, (int)dims.Height), rarityColor * 0.9f);
+
+		// Tier badge (top-right): diamonds showing power level
+		int tierLevel = rarity switch
+		{
+			0 => 1,     // Copper/Iron/Silver
+			1 => 2,     // Gold/Demonite
+			2 or 3 => 3, // Hellstone
+			4 or 5 => 4, // Cobalt/Mythril
+			>= 6 => 5,   // Adamantite+
+			_ => 1
+		};
+		string diamonds = new('◆', tierLevel);
+		float diamondW = FontAssets.MouseText.Value.MeasureString(diamonds).X * 0.4f;
+		Utils.DrawBorderString(spriteBatch, diamonds,
+			new Vector2(x + w - diamondW - 6f, y + 2f), rarityColor * 0.8f, 0.4f);
 
 		// Header: tier name + item count
+		// Color the tier name with rarity color for higher tiers
+		Color nameColor = Color.Lerp(Color.White, rarityColor, intensity * 0.5f);
 		Utils.DrawBorderString(spriteBatch, _tierName,
-			new Vector2(x + 8f, y + 2f), Color.White, 0.55f);
+			new Vector2(x + 8f, y + 2f), nameColor, 0.55f);
 
 		string countText = $"({_items.Count} items)";
 		float nameW = FontAssets.MouseText.Value.MeasureString(_tierName).X * 0.55f;
