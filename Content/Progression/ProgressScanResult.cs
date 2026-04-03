@@ -14,4 +14,7 @@ public class ProgressScanResult
 	public PlayerStats Stats;
 	public List<BossInfo> NextBosses;
 	public WorldContext WorldContext;
+
+	/// <summary>Version at which this result was computed. Stale if < CacheVersion.Current.</summary>
+	public long Version;
 }

@@ -114,6 +114,7 @@ public class CraftPathState : UIState
 			_chestToggleText.SetText(_chestsEnabled ? "Chests: ON" : "Chests: OFF");
 			_chestToggleBtn.BackgroundColor = _chestsEnabled ? new Color(40, 70, 120) : new Color(44, 50, 88);
 			_queue.InvalidateCache();
+			global::ProgressionCompass.Content.Progression.CacheVersion.Bump();
 			if (_queue.Count > 0) RunResolver();
 			try { Main.LocalPlayer?.GetModPlayer<TrackingPlayer>()?.RefreshTracking(); } catch { }
 			_cachedProgressResult = null;
@@ -283,6 +284,7 @@ public class CraftPathState : UIState
 	{
 		_recipePreferences[itemType] = alternativeIndex;
 		_queue.InvalidateCache();
+		global::ProgressionCompass.Content.Progression.CacheVersion.Bump();
 		if (_queue.Count > 0) RunResolver();
 	}
 
@@ -520,7 +522,8 @@ public class CraftPathState : UIState
 					DetectedClass = snap.DetectedClass,
 					Stats = snap.Stats,
 					NextBosses = nextBosses,
-					WorldContext = snap.World
+					WorldContext = snap.World,
+					Version = global::ProgressionCompass.Content.Progression.CacheVersion.Current
 				};
 			}
 			catch (Exception ex)

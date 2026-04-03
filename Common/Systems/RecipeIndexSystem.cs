@@ -78,5 +78,6 @@ public class RecipeIndexSystem : ModSystem
 		RecipesByIngredient = null;
 		CraftableItems = null;
 		EvilAffiliationMap.Unload();
+		CacheVersion.Reset();
 	}
 }

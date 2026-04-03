@@ -38,6 +38,7 @@ public class TrackingPlayer : ModPlayer
 		if (hash == _lastInventoryHash)
 			return;
 		_lastInventoryHash = hash;
+		global::ProgressionCompass.Content.Progression.CacheVersion.Bump();
 
 		RefreshTracking();
 	}
