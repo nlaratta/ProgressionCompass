@@ -380,7 +380,7 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 			filtered.Add(upgrade);
 		}
 
-		// Sort: Ready by score desc, Nearly/Building by completion desc
+		// Distribute into readiness columns
 		foreach (var upgrade in filtered)
 		{
 			switch (upgrade.Proximity)
@@ -390,6 +390,11 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 					_readyCount++;
 					break;
 				case Proximity.AlmostReady:
+					// Same filter as dashboard: for small recipes (≤2 leaf materials),
+					// only show if player owns an equipment ingredient — owning just
+					// a common material like Wood isn't meaningful progress
+					if (upgrade.LeafMaterialsTotal < 3 && !OwnsEquipmentIngredient(upgrade))
+						break;
 					_nearlyList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type)));
 					_nearlyCount++;
 					break;
@@ -407,6 +412,24 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 			_nearlyList?.Add(new UIEmptyMessage("None yet"));
 		if (_buildingCount == 0)
 			_buildingList?.Add(new UIEmptyMessage("None yet"));
+	}
+
+	/// <summary>
+	/// For small recipes (≤2 ingredients), checks if the player owns at least one
+	/// equipment ingredient — not just a common material like Wood or Gel.
+	/// </summary>
+	private static bool OwnsEquipmentIngredient(UpgradeItem item)
+	{
+		if (item.Ingredients == null) return false;
+		foreach (var (ingType, needed, owned) in item.Ingredients)
+		{
+			if (owned <= 0) continue;
+			var ing = ContentSamples.ItemsByType.GetValueOrDefault(ingType);
+			if (ing == null) continue;
+			if (ing.accessory || ing.damage > 0 || ing.headSlot >= 0 || ing.bodySlot >= 0 || ing.legSlot >= 0)
+				return true;
+		}
+		return false;
 	}
 
 	// ── Source Priority Column ───────────────────────────────────
