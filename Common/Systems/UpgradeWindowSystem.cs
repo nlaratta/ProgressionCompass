@@ -391,25 +391,21 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 			filtered.Add(upgrade);
 		}
 
-		// Distribute into readiness columns
-		foreach (var upgrade in filtered)
+		// Group items by shared primary bar ingredient, then distribute into columns
+		var byProximity = new Dictionary<Proximity, List<UpgradeItem>>
 		{
-			switch (upgrade.Proximity)
-			{
-				case Proximity.CraftableNow:
-					_readyList?.Add(MakeUpgradeCard(upgrade));
-					_readyCount++;
-					break;
-				case Proximity.AlmostReady:
-					_nearlyList?.Add(MakeUpgradeCard(upgrade));
-					_nearlyCount++;
-					break;
-				case Proximity.NeedsWork:
-					_buildingList?.Add(MakeUpgradeCard(upgrade));
-					_buildingCount++;
-					break;
-			}
-		}
+			[Proximity.CraftableNow] = [],
+			[Proximity.AlmostReady] = [],
+			[Proximity.NeedsWork] = []
+		};
+
+		foreach (var upgrade in filtered)
+			if (byProximity.ContainsKey(upgrade.Proximity))
+				byProximity[upgrade.Proximity].Add(upgrade);
+
+		AddGroupedToColumn(_readyList, byProximity[Proximity.CraftableNow], ref _readyCount);
+		AddGroupedToColumn(_nearlyList, byProximity[Proximity.AlmostReady], ref _nearlyCount);
+		AddGroupedToColumn(_buildingList, byProximity[Proximity.NeedsWork], ref _buildingCount);
 
 		if (_readyCount == 0)
 			_readyList?.Add(new UIEmptyMessage("None yet"));
@@ -417,6 +413,131 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 			_nearlyList?.Add(new UIEmptyMessage("None yet"));
 		if (_buildingCount == 0)
 			_buildingList?.Add(new UIEmptyMessage("None yet"));
+	}
+
+	/// <summary>
+	/// Groups items sharing a primary bar ingredient into tier cards,
+	/// renders ungrouped items as individual compact cards.
+	/// </summary>
+	private void AddGroupedToColumn(
+		Terraria.GameContent.UI.Elements.UIList list,
+		List<UpgradeItem> items,
+		ref int count)
+	{
+		if (list == null || items.Count == 0) return;
+
+		// Detect primary bar for each item from MissingItems
+		var barGroups = new Dictionary<int, List<UpgradeItem>>();
+		var ungrouped = new List<UpgradeItem>();
+
+		foreach (var item in items)
+		{
+			int primaryBar = DetectPrimaryBar(item);
+			if (primaryBar > 0)
+			{
+				if (!barGroups.TryGetValue(primaryBar, out var group))
+				{
+					group = [];
+					barGroups[primaryBar] = group;
+				}
+				group.Add(item);
+			}
+			else
+			{
+				ungrouped.Add(item);
+			}
+		}
+
+		// Render groups with 3+ items as tier cards, split smaller groups back to individual
+		foreach (var (barType, group) in barGroups)
+		{
+			if (group.Count >= 3)
+			{
+				var barItem = ContentSamples.ItemsByType.GetValueOrDefault(barType);
+				string tierName = barItem?.Name ?? $"Tier {barType}";
+				var card = MakeTierGroupCard(tierName, barType, group);
+				list.Add(card);
+				count += group.Count;
+			}
+			else
+			{
+				ungrouped.AddRange(group);
+			}
+		}
+
+		// Render ungrouped items as individual cards
+		foreach (var item in ungrouped)
+		{
+			list.Add(MakeUpgradeCard(item));
+			count++;
+		}
+	}
+
+	/// <summary>
+	/// Detects the primary bar/ore ingredient from an item's missing materials.
+	/// Returns the bar ItemID if found, 0 otherwise.
+	/// </summary>
+	private static int DetectPrimaryBar(UpgradeItem item)
+	{
+		if (item.MissingItems == null || item.MissingItems.Count == 0)
+			return 0;
+
+		// Known bar ItemIDs
+		HashSet<int> barTypes = [
+			ItemID.CopperBar, ItemID.TinBar, ItemID.IronBar, ItemID.LeadBar,
+			ItemID.SilverBar, ItemID.TungstenBar, ItemID.GoldBar, ItemID.PlatinumBar,
+			ItemID.CobaltBar, ItemID.PalladiumBar, ItemID.MythrilBar, ItemID.OrichalcumBar,
+			ItemID.AdamantiteBar, ItemID.TitaniumBar,
+			ItemID.DemoniteBar, ItemID.CrimtaneBar, ItemID.HellstoneBar,
+			ItemID.HallowedBar, ItemID.ChlorophyteBar, ItemID.ShroomiteBar,
+			ItemID.SpectreBar
+		];
+
+		foreach (var (matType, _) in item.MissingItems)
+			if (barTypes.Contains(matType))
+				return matType;
+
+		// Also check for ore as primary missing material
+		HashSet<int> oreTypes = [
+			ItemID.CopperOre, ItemID.TinOre, ItemID.IronOre, ItemID.LeadOre,
+			ItemID.SilverOre, ItemID.TungstenOre, ItemID.GoldOre, ItemID.PlatinumOre,
+			ItemID.CobaltOre, ItemID.PalladiumOre, ItemID.MythrilOre, ItemID.OrichalcumOre,
+			ItemID.AdamantiteOre, ItemID.TitaniumOre,
+			ItemID.DemoniteOre, ItemID.CrimtaneOre, ItemID.Hellstone
+		];
+
+		foreach (var (matType, _) in item.MissingItems)
+			if (oreTypes.Contains(matType))
+				return matType;
+
+		return 0;
+	}
+
+	private UITierGroupCard MakeTierGroupCard(string tierName, int barType, List<UpgradeItem> items)
+	{
+		// Sort: highest score first within group
+		items.Sort((a, b) => b.Score.CompareTo(a.Score));
+
+		var card = new UITierGroupCard(tierName, barType, items,
+			type => OnAnalyzeItem?.Invoke(type),
+			type => OnPinItem?.Invoke(type));
+
+		card.IsHighlighted = type => HighlightedUpgradeTypes?.Contains(type) ?? false;
+		card.OnHoverStart = type =>
+		{
+			if (_sourcePriority?.Rankings == null) return;
+			foreach (var ranking in _sourcePriority.Rankings)
+				foreach (var drop in ranking.Drops)
+					foreach (var c in drop.FeedsInto)
+						if (c.UpgradeItemType == type)
+						{
+							HighlightedLocationName = ranking.LocationName;
+							return;
+						}
+		};
+		card.OnHoverEnd = () => HighlightedLocationName = null;
+
+		return card;
 	}
 
 	private UICompactUpgradeCard MakeUpgradeCard(UpgradeItem upgrade)
