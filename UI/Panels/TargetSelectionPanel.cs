@@ -91,6 +91,19 @@ public class TargetSelectionPanel : UIElement
 	public override void LeftClick(UIMouseEvent evt)
 	{
 		base.LeftClick(evt);
+		var dims = GetDimensions();
+
+		// Clear button (X) at right edge of search bar
+		if (!string.IsNullOrEmpty(_currentSearch))
+		{
+			float clearX = dims.X + dims.Width - 24f;
+			if (evt.MousePosition.X >= clearX && evt.MousePosition.Y < dims.Y + 36f)
+			{
+				ClearSearch();
+				return;
+			}
+		}
+
 		// If clicking on the search bar area, toggle input
 		if (_searchBarPanel.ContainsPoint(evt.MousePosition))
 		{
@@ -98,9 +111,42 @@ public class TargetSelectionPanel : UIElement
 		}
 	}
 
+	protected override void DrawSelf(SpriteBatch spriteBatch)
+	{
+		var dims = GetDimensions();
+
+		// Clear button (X) when search has text
+		if (!string.IsNullOrEmpty(_currentSearch))
+		{
+			float clearX = dims.X + dims.Width - 24f;
+			float clearY = dims.Y + 8f;
+			bool hoverClear = Main.mouseX >= clearX && Main.mouseX < clearX + 20f
+				&& Main.mouseY >= dims.Y && Main.mouseY < dims.Y + 36f;
+			Utils.DrawBorderString(spriteBatch, "X",
+				new Vector2(clearX + 4f, clearY),
+				hoverClear ? new Color(255, 100, 100) : new Color(120, 120, 150), 0.65f);
+		}
+
+		// Result count (below search bar, above results)
+		if (_totalMatches > 0 && !string.IsNullOrEmpty(_currentSearch))
+		{
+			var config = Terraria.ModLoader.ModContent.GetInstance<Common.CraftPathConfig>();
+			int maxResults = config?.MaxSearchResults ?? _maxResults;
+
+			string countText = _totalMatches <= maxResults
+				? $"{_totalMatches} results"
+				: $"{maxResults} of {_totalMatches} results";
+			Utils.DrawBorderString(spriteBatch, countText,
+				new Vector2(dims.X + 4f, dims.Y + 38f), new Color(100, 110, 150), 0.5f);
+		}
+	}
+
+	private int _totalMatches;
+
 	private void FilterItems(string searchText)
 	{
 		_resultsList.Clear();
+		_totalMatches = 0;
 
 		if (string.IsNullOrWhiteSpace(searchText) || searchText.Length < 2)
 		{
@@ -114,6 +160,17 @@ public class TargetSelectionPanel : UIElement
 
 		var config = Terraria.ModLoader.ModContent.GetInstance<Common.CraftPathConfig>();
 		int maxResults = config?.MaxSearchResults ?? _maxResults;
+
+		// Count total matches first for display
+		int totalFound = 0;
+		foreach (var (type, _) in ContentSamples.ItemsByType)
+		{
+			if (type <= ItemID.None || type >= TextureAssets.Item.Length) continue;
+			string name = Lang.GetItemNameValue(type);
+			if (!string.IsNullOrEmpty(name) && name.ToLowerInvariant().Contains(search))
+				totalFound++;
+		}
+		_totalMatches = totalFound;
 
 		foreach (var (type, item) in ContentSamples.ItemsByType)
 		{
@@ -150,6 +207,17 @@ public class TargetSelectionPanel : UIElement
 
 		if (count == 0)
 			_resultsList.Add(new UIEmptyMessage($"No items matching \"{searchText}\"."));
+	}
+
+	/// <summary>Clears the search bar and results.</summary>
+	public void ClearSearch()
+	{
+		_searchBar.SetContents("", true);
+		if (_searchBar.IsWritingText)
+			_searchBar.ToggleTakingText();
+		_resultsList.Clear();
+		_currentSearch = "";
+		_totalMatches = 0;
 	}
 
 	private void HandleItemSelected(int itemType)

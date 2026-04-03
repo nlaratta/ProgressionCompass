@@ -56,6 +56,14 @@ public class CraftPathUISystem : ModSystem
 		CraftPathUI?.InspectItem(itemType);
 	}
 
+	/// <summary>Ensures the main panel is visible and analyzes the given item.</summary>
+	public void ShowAndAnalyze(int itemType)
+	{
+		if (!IsVisible)
+			CraftPathInterface?.SetState(CraftPathUI);
+		CraftPathUI?.InspectItem(itemType);
+	}
+
 	public override void UpdateUI(GameTime gameTime)
 	{
 		_lastGameTime = gameTime;

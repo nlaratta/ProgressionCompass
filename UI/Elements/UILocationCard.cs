@@ -23,6 +23,15 @@ public class UILocationCard : UIElement
 	private readonly Action<int> _onAnalyzeItem;
 	private readonly List<DropDisplayInfo> _dropDisplay = [];
 
+	/// <summary>Set externally: returns true if this location should be highlighted.</summary>
+	public Func<string, bool> IsHighlighted { get; set; }
+
+	/// <summary>Set externally: called on hover to highlight fed upgrade types.</summary>
+	public Action<HashSet<int>> OnHoverStart { get; set; }
+	public Action OnHoverEnd { get; set; }
+
+	private bool _wasHovering;
+
 	private const float HeaderH = 26f;
 	private const float HintH = 16f;
 	private const float SubtitleH = 16f;
@@ -82,9 +91,27 @@ public class UILocationCard : UIElement
 		float y = dims.Y;
 		float w = dims.Width;
 
-		// Background
-		spriteBatch.Draw(TextureAssets.MagicPixel.Value, dims.ToRectangle(),
-			new Color(25, 30, 55) * 0.6f);
+		// Cross-column hover linkage
+		bool hover = IsMouseHovering;
+		bool highlighted = IsHighlighted?.Invoke(_ranking.LocationName) ?? false;
+		if (hover && !_wasHovering)
+		{
+			// Collect all upgrade types this location feeds
+			var fedTypes = new HashSet<int>();
+			foreach (var drop in _ranking.Drops)
+				foreach (var c in drop.FeedsInto)
+					fedTypes.Add(c.UpgradeItemType);
+			OnHoverStart?.Invoke(fedTypes);
+		}
+		else if (!hover && _wasHovering)
+			OnHoverEnd?.Invoke();
+		_wasHovering = hover;
+
+		// Background (with highlight)
+		Color bgColor = highlighted ? new Color(35, 45, 75) * 0.7f : new Color(25, 30, 55) * 0.6f;
+		spriteBatch.Draw(TextureAssets.MagicPixel.Value, dims.ToRectangle(), bgColor);
+		if (highlighted)
+			UIHelper.DrawBorder(spriteBatch, dims.ToRectangle(), new Color(100, 160, 255) * 0.5f);
 
 		// Left accent border (4px, colored by biome or source type)
 		Color accentColor = _ranking.Type == LocationType.Biome

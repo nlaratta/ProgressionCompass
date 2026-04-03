@@ -27,6 +27,21 @@ public class TrackingOverlaySystem : ModSystem
 		_overlayState = new TrackingOverlayState(this);
 		_overlayState.Activate();
 		_overlayInterface.SetState(_overlayState);
+
+		// Wire overlay goal interactions
+		_overlayState.OnGoalClicked += itemType =>
+		{
+			// Open main panel and analyze the clicked item
+			var uiSystem = ModContent.GetInstance<CraftPathUISystem>();
+			uiSystem?.ShowAndAnalyze(itemType);
+		};
+		_overlayState.OnGoalUnpinned += itemType =>
+		{
+			// Unpin the goal
+			var tp = Main.LocalPlayer?.GetModPlayer<Players.TrackingPlayer>();
+			tp?.Tracking.UnpinByType(itemType);
+			tp?.RefreshTracking();
+		};
 	}
 
 	public override void Unload()
@@ -121,15 +136,66 @@ public class TrackingOverlayState : UIState
 		_system = system;
 	}
 
+	/// <summary>Fired when a tracked goal is clicked in the overlay.</summary>
+	public event Action<int> OnGoalClicked;
+
+	/// <summary>Fired when a tracked goal is right-clicked for unpinning.</summary>
+	public event Action<int> OnGoalUnpinned;
+
 	public override void LeftMouseDown(UIMouseEvent evt)
 	{
 		base.LeftMouseDown(evt);
 		var pos = GetPanelPos();
-		var rect = new Rectangle((int)pos.X, (int)pos.Y, (int)PanelW, 22);
-		if (rect.Contains(evt.MousePosition.ToPoint()))
+
+		// Drag header
+		var headerRect = new Rectangle((int)pos.X, (int)pos.Y, (int)PanelW, 22);
+		if (headerRect.Contains(evt.MousePosition.ToPoint()))
 		{
 			_dragging = true;
 			_dragOffset = evt.MousePosition - pos;
+			return;
+		}
+
+		// Goal row click → analyze
+		TrackingPlayer tp;
+		try { tp = Main.LocalPlayer?.GetModPlayer<TrackingPlayer>(); } catch { return; }
+		if (tp?.Tracking == null) return;
+
+		float goalY = pos.Y + 24f;
+		int goalCount = Math.Min(tp.Tracking.Goals.Count, 5);
+		for (int i = 0; i < goalCount; i++)
+		{
+			if (evt.MousePosition.Y >= goalY && evt.MousePosition.Y < goalY + 24f
+				&& evt.MousePosition.X >= pos.X && evt.MousePosition.X < pos.X + PanelW)
+			{
+				OnGoalClicked?.Invoke(tp.Tracking.Goals[i].ItemType);
+				return;
+			}
+			goalY += 24f;
+		}
+	}
+
+	public override void RightMouseDown(UIMouseEvent evt)
+	{
+		base.RightMouseDown(evt);
+		var pos = GetPanelPos();
+
+		// Goal row right-click → unpin
+		TrackingPlayer tp;
+		try { tp = Main.LocalPlayer?.GetModPlayer<TrackingPlayer>(); } catch { return; }
+		if (tp?.Tracking == null) return;
+
+		float goalY = pos.Y + 24f;
+		int goalCount = Math.Min(tp.Tracking.Goals.Count, 5);
+		for (int i = 0; i < goalCount; i++)
+		{
+			if (evt.MousePosition.Y >= goalY && evt.MousePosition.Y < goalY + 24f
+				&& evt.MousePosition.X >= pos.X && evt.MousePosition.X < pos.X + PanelW)
+			{
+				OnGoalUnpinned?.Invoke(tp.Tracking.Goals[i].ItemType);
+				return;
+			}
+			goalY += 24f;
 		}
 	}
 
@@ -243,6 +309,14 @@ public class TrackingOverlayState : UIState
 			var goal = tracking.Goals[i];
 			float pct = goal.ProgressPercent / 100f;
 			bool isReady = pct >= 1f;
+
+			// Hover highlight (indicates row is clickable)
+			bool goalHover = Main.mouseX >= px && Main.mouseX < px + PanelW
+				&& Main.mouseY >= y && Main.mouseY < y + 24f;
+			if (goalHover)
+				spriteBatch.Draw(TextureAssets.MagicPixel.Value,
+					new Rectangle((int)px + 2, (int)y, (int)PanelW - 4, 22),
+					new Color(60, 70, 120) * 0.4f);
 
 			// Ready-to-craft highlight
 			if (isReady)

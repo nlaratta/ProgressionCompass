@@ -141,6 +141,12 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 
 	private UIClassFilterBar _classFilter;
 
+	/// <summary>Set by UILocationCard on hover — upgrade item types this location feeds.</summary>
+	internal HashSet<int> HighlightedUpgradeTypes { get; set; }
+
+	/// <summary>Set by UICompactUpgradeCard on hover — location names that provide this item's materials.</summary>
+	internal string HighlightedLocationName { get; set; }
+
 	private PlayerClass _activeFilter = PlayerClass.Mixed;
 	private List<GearRecommendation> _allRecs;
 	private List<CombinationResult> _allCombos;
@@ -389,20 +395,17 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 			switch (upgrade.Proximity)
 			{
 				case Proximity.CraftableNow:
-					_readyList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type), type => OnPinItem?.Invoke(type)));
+					_readyList?.Add(MakeUpgradeCard(upgrade));
 					_readyCount++;
 					break;
 				case Proximity.AlmostReady:
-					// Same filter as dashboard: for small recipes (≤2 leaf materials),
-					// only show if player owns an equipment ingredient — owning just
-					// a common material like Wood isn't meaningful progress
 					if (upgrade.LeafMaterialsTotal < 3 && !OwnsNonTrivialIngredient(upgrade))
 						break;
-					_nearlyList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type), type => OnPinItem?.Invoke(type)));
+					_nearlyList?.Add(MakeUpgradeCard(upgrade));
 					_nearlyCount++;
 					break;
 				case Proximity.NeedsWork:
-					_buildingList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type), type => OnPinItem?.Invoke(type)));
+					_buildingList?.Add(MakeUpgradeCard(upgrade));
 					_buildingCount++;
 					break;
 				// FarAway items not shown in columns
@@ -431,6 +434,54 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 				return true;
 		}
 		return false;
+	}
+
+	private UICompactUpgradeCard MakeUpgradeCard(UpgradeItem upgrade)
+	{
+		var card = new UICompactUpgradeCard(upgrade,
+			type => OnAnalyzeItem?.Invoke(type),
+			type => OnPinItem?.Invoke(type));
+
+		// Cross-column linkage: highlight this card when a hovered location feeds it
+		card.IsHighlighted = type => HighlightedUpgradeTypes?.Contains(type) ?? false;
+
+		// When hovering this card, highlight locations that provide its missing materials
+		card.OnHoverStart = type =>
+		{
+			// Find location names that feed this upgrade
+			if (_sourcePriority?.Rankings == null) return;
+			foreach (var ranking in _sourcePriority.Rankings)
+			{
+				foreach (var drop in ranking.Drops)
+				{
+					foreach (var c in drop.FeedsInto)
+					{
+						if (c.UpgradeItemType == type)
+						{
+							HighlightedLocationName = ranking.LocationName;
+							return;
+						}
+					}
+				}
+			}
+		};
+		card.OnHoverEnd = () => HighlightedLocationName = null;
+
+		return card;
+	}
+
+	private UILocationCard MakeLocationCard(LocationRanking ranking)
+	{
+		var card = new UILocationCard(ranking, type => OnAnalyzeItem?.Invoke(type));
+
+		// Cross-column linkage: highlight this card when a hovered upgrade needs materials from here
+		card.IsHighlighted = loc => HighlightedLocationName == loc;
+
+		// When hovering this location, highlight upgrade items it feeds
+		card.OnHoverStart = types => HighlightedUpgradeTypes = types;
+		card.OnHoverEnd = () => HighlightedUpgradeTypes = null;
+
+		return card;
 	}
 
 	// ── Source Priority Column ───────────────────────────────────
@@ -467,7 +518,7 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 				if (!hasRelevant) continue;
 			}
 
-			_sourceList.Add(new UILocationCard(ranking, type => OnAnalyzeItem?.Invoke(type)));
+			_sourceList.Add(MakeLocationCard(ranking));
 		}
 
 		if (_sourceList.Count == 0)

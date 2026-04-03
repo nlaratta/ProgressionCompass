@@ -22,8 +22,16 @@ public class UICompactUpgradeCard : UIElement
 	private readonly Item _displayItem;
 	private readonly string _sourceHint;
 
+	/// <summary>Set externally: returns true if this item type should be highlighted.</summary>
+	public Func<int, bool> IsHighlighted { get; set; }
+
+	/// <summary>Set externally: called when hovering to highlight related locations.</summary>
+	public Action<int> OnHoverStart { get; set; }
+	public Action OnHoverEnd { get; set; }
+
 	private const float CardHeight = 48f;
 	private const float PinSize = 14f;
+	private bool _wasHovering;
 
 	public UICompactUpgradeCard(UpgradeItem item, Action<int> onAnalyze, Action<int> onPin = null)
 	{
@@ -78,9 +86,21 @@ public class UICompactUpgradeCard : UIElement
 			Main.LocalPlayer.mouseInterface = true;
 		}
 
-		// Background
-		Color bg = hover ? new Color(40, 50, 80) * 0.7f : new Color(30, 35, 60) * 0.5f;
+		// Cross-column hover linkage
+		bool highlighted = IsHighlighted?.Invoke(_item.ItemType) ?? false;
+		if (hover)
+			OnHoverStart?.Invoke(_item.ItemType);
+		else if (!hover && _wasHovering)
+			OnHoverEnd?.Invoke();
+		_wasHovering = hover;
+
+		// Background (with highlight border)
+		Color bg = hover ? new Color(40, 50, 80) * 0.7f
+			: highlighted ? new Color(50, 60, 100) * 0.6f
+			: new Color(30, 35, 60) * 0.5f;
 		spriteBatch.Draw(TextureAssets.MagicPixel.Value, dims.ToRectangle(), bg);
+		if (highlighted)
+			UIHelper.DrawBorder(spriteBatch, dims.ToRectangle(), new Color(100, 160, 255) * 0.5f);
 
 		// Pin button (top-right corner)
 		if (_onPin != null)
