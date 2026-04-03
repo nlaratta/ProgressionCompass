@@ -393,7 +393,7 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 					// Same filter as dashboard: for small recipes (≤2 leaf materials),
 					// only show if player owns an equipment ingredient — owning just
 					// a common material like Wood isn't meaningful progress
-					if (upgrade.LeafMaterialsTotal < 3 && !OwnsEquipmentIngredient(upgrade))
+					if (upgrade.LeafMaterialsTotal < 3 && !OwnsNonTrivialIngredient(upgrade))
 						break;
 					_nearlyList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type)));
 					_nearlyCount++;
@@ -415,22 +415,32 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 	}
 
 	/// <summary>
-	/// For small recipes (≤2 ingredients), checks if the player owns at least one
-	/// equipment ingredient — not just a common material like Wood or Gel.
+	/// For small recipes (≤2 leaf materials), checks if the player owns at least one
+	/// non-trivial ingredient — not just a very common material like Wood or Gel.
 	/// </summary>
-	private static bool OwnsEquipmentIngredient(UpgradeItem item)
+	private static bool OwnsNonTrivialIngredient(UpgradeItem item)
 	{
 		if (item.Ingredients == null) return false;
 		foreach (var (ingType, needed, owned) in item.Ingredients)
 		{
 			if (owned <= 0) continue;
-			var ing = ContentSamples.ItemsByType.GetValueOrDefault(ingType);
-			if (ing == null) continue;
-			if (ing.accessory || ing.damage > 0 || ing.headSlot >= 0 || ing.bodySlot >= 0 || ing.legSlot >= 0)
+			if (!_trivialMaterials.Contains(ingType))
 				return true;
 		}
 		return false;
 	}
+
+	private static readonly HashSet<int> _trivialMaterials =
+	[
+		ItemID.Wood, ItemID.StoneBlock, ItemID.DirtBlock, ItemID.Gel,
+		ItemID.SandBlock, ItemID.ClayBlock, ItemID.MudBlock, ItemID.Torch,
+		ItemID.Cobweb, ItemID.Lens, ItemID.FallenStar,
+		ItemID.Acorn, ItemID.Daybloom, ItemID.Blinkroot, ItemID.Moonglow,
+		ItemID.Waterleaf, ItemID.Deathweed, ItemID.Shiverthorn,
+		ItemID.BottledWater, ItemID.Mushroom, ItemID.GlowingMushroom,
+		ItemID.Snowball, ItemID.IceBlock,
+		ItemID.RopeCoil, ItemID.Chain
+	];
 
 	// ── Source Priority Column ───────────────────────────────────
 

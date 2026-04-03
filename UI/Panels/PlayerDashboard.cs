@@ -84,22 +84,35 @@ public class PlayerDashboard : UIElement
 	}
 
 	/// <summary>
-	/// For small recipes (≤2 ingredients), checks if the player owns at least one
-	/// equipment ingredient (weapon/armor/accessory) — not just a common material.
+	/// For small recipes (≤2 leaf materials), checks if the player owns at least one
+	/// non-trivial ingredient — not just a very common material like Wood or Gel.
+	/// Prevents noise from items showing as "Almost Ready" just because the player
+	/// has basic materials in their inventory.
 	/// </summary>
-	private static bool OwnsEquipmentIngredient(UpgradeItem item)
+	private static bool OwnsNonTrivialIngredient(UpgradeItem item)
 	{
 		if (item.Ingredients == null) return false;
 		foreach (var (ingType, needed, owned) in item.Ingredients)
 		{
 			if (owned <= 0) continue;
-			var ing = Terraria.ID.ContentSamples.ItemsByType.GetValueOrDefault(ingType);
-			if (ing == null) continue;
-			if (ing.accessory || ing.damage > 0 || ing.headSlot >= 0 || ing.bodySlot >= 0 || ing.legSlot >= 0)
+			if (!_trivialMaterials.Contains(ingType))
 				return true;
 		}
 		return false;
 	}
+
+	// Materials so common that owning them doesn't represent meaningful progress
+	private static readonly HashSet<int> _trivialMaterials =
+	[
+		ItemID.Wood, ItemID.StoneBlock, ItemID.DirtBlock, ItemID.Gel,
+		ItemID.SandBlock, ItemID.ClayBlock, ItemID.MudBlock, ItemID.Torch,
+		ItemID.Cobweb, ItemID.Lens, ItemID.FallenStar,
+		ItemID.Acorn, ItemID.Daybloom, ItemID.Blinkroot, ItemID.Moonglow,
+		ItemID.Waterleaf, ItemID.Deathweed, ItemID.Shiverthorn,
+		ItemID.BottledWater, ItemID.Mushroom, ItemID.GlowingMushroom,
+		ItemID.Snowball, ItemID.IceBlock,
+		ItemID.RopeCoil, ItemID.Chain
+	];
 
 	private bool IsSectionCollapsed(string name) => _collapsed.GetValueOrDefault(name, false);
 	private void ToggleSection(string name)
@@ -157,7 +170,7 @@ public class PlayerDashboard : UIElement
 			i.Proximity == Proximity.AlmostReady
 			// For small recipes (≤2 leaves), only show if player owns an
 			// equipment ingredient — owning just a common material isn't meaningful
-			&& (i.LeafMaterialsTotal >= 3 || OwnsEquipmentIngredient(i)));
+			&& (i.LeafMaterialsTotal >= 3 || OwnsNonTrivialIngredient(i)));
 		if (almost.Count == 0) return;
 
 		almost.Sort((a, b) => b.CompletionPercent.CompareTo(a.CompletionPercent));
