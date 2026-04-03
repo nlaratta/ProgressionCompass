@@ -18,20 +18,42 @@ public class DependencyResolver
 	private const int MaxDepth = 25;
 	private const int MaxRecipesPerItem = 15;
 
+	// Pool of reusable dictionaries for backtracking snapshots.
+	// Avoids allocating 500+ dictionaries per resolve cycle.
+	private readonly Stack<Dictionary<int, int>> _dictPool = new(16);
+
 	/// <summary>
 	/// Captures a snapshot of the mutable inventory dictionary.
-	/// Call Restore() to rollback changes on failure.
+	/// Uses pooled dictionaries to reduce GC pressure.
 	/// </summary>
-	private readonly struct InventorySnapshot(Dictionary<int, int> target, Dictionary<int, int> copy)
+	private readonly struct InventorySnapshot
 	{
-		public static InventorySnapshot Take(Dictionary<int, int> available) =>
-			new(available, new Dictionary<int, int>(available));
+		private readonly Dictionary<int, int> _target;
+		private readonly Dictionary<int, int> _copy;
+		private readonly Stack<Dictionary<int, int>> _pool;
+
+		private InventorySnapshot(Dictionary<int, int> target, Dictionary<int, int> copy, Stack<Dictionary<int, int>> pool)
+		{
+			_target = target;
+			_copy = copy;
+			_pool = pool;
+		}
+
+		public static InventorySnapshot Take(Dictionary<int, int> available, Stack<Dictionary<int, int>> pool)
+		{
+			var copy = pool.Count > 0 ? pool.Pop() : new Dictionary<int, int>(available.Count);
+			copy.Clear();
+			foreach (var kv in available)
+				copy[kv.Key] = kv.Value;
+			return new InventorySnapshot(available, copy, pool);
+		}
 
 		public void Restore()
 		{
-			target.Clear();
-			foreach (var kv in copy)
-				target[kv.Key] = kv.Value;
+			_target.Clear();
+			foreach (var kv in _copy)
+				_target[kv.Key] = kv.Value;
+			_pool?.Push(_copy); // Return to pool
 		}
 	}
 
@@ -42,6 +64,7 @@ public class DependencyResolver
 	// Per-instance caches — avoid repeated lookups for the same item within one resolve cycle
 	private readonly Dictionary<int, AcquireNode> _acquireCache = [];
 	private readonly Dictionary<int, int> _acquireCostCache = [];
+	private readonly Dictionary<int, int> _bestGroupMember = []; // groupId → best member itemType
 	private readonly WorldContext _worldContext;
 	private readonly Progression.Tier _currentTier;
 
@@ -221,7 +244,7 @@ public class DependencyResolver
 			int outputPerCraft = recipe.createItem.stack;
 			int craftCount = (remaining + outputPerCraft - 1) / outputPerCraft;
 
-			var snapshot = InventorySnapshot.Take(available);
+			var snapshot = InventorySnapshot.Take(available, _dictPool);
 			visited.Add(recipeIndex);
 
 			var ingredients = new List<GraphNode>();
@@ -333,19 +356,29 @@ public class DependencyResolver
 		if (!RecipeGroup.recipeGroups.TryGetValue(groupId, out var group))
 			return MakeAcquireNode(0, quantity);
 
+		// Fast path: if we've resolved this group before and the best member
+		// is free (in inventory), skip the full member iteration
+		if (_bestGroupMember.TryGetValue(groupId, out int cachedBest)
+			&& available.GetValueOrDefault(cachedBest) >= quantity)
+		{
+			available[cachedBest] -= quantity;
+			return new GroupNode(groupId, quantity,
+				new HaveNode(cachedBest, quantity, InventoryEntry.Personal(quantity)));
+		}
+
 		GraphNode bestNode = null;
 		int bestCost = int.MaxValue;
 		bool bestIsPreferred = false;
 		Dictionary<int, int> bestAvailable = null;
+		int bestMemberType = 0;
 
 		foreach (int memberType in group.ValidItems)
 		{
-			var snapshot = InventorySnapshot.Take(available);
+			var snapshot = InventorySnapshot.Take(available, _dictPool);
 			var node = ResolveItem(memberType, quantity, available, visited, depth);
 			int cost = node.AcquisitionCost;
 			bool isPreferred = _worldContext.IsPreferredOreItem(memberType);
 
-			// Pick this member if: cheaper, OR same cost but world-preferred ore
 			bool isBetter = cost < bestCost
 				|| (cost == bestCost && isPreferred && !bestIsPreferred);
 
@@ -354,11 +387,16 @@ public class DependencyResolver
 				bestCost = cost;
 				bestNode = node;
 				bestIsPreferred = isPreferred;
+				bestMemberType = memberType;
 				bestAvailable = new Dictionary<int, int>(available);
 			}
 
 			snapshot.Restore();
 		}
+
+		// Cache the best member for this group
+		if (bestMemberType > 0)
+			_bestGroupMember[groupId] = bestMemberType;
 
 		if (bestNode != null)
 		{
@@ -426,7 +464,7 @@ public class DependencyResolver
 				continue;
 
 			// Try resolving the source item
-			var snapshot = InventorySnapshot.Take(available);
+			var snapshot = InventorySnapshot.Take(available, _dictPool);
 			visited.Add(-sourceItemType);
 
 			var sourceNode = ResolveItem(sourceItemType, quantity, available, visited, depth + 1);

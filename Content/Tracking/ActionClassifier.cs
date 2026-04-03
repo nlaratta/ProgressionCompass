@@ -22,7 +22,7 @@ public static class ActionClassifier
 		ItemSourceSystem sourceSystem)
 	{
 		// Merge all missing materials across all goals
-		var allMissing = new Dictionary<int, MissingItem>();
+		var allMissing = new Dictionary<int, MergedNeed>();
 
 		foreach (var goal in goals)
 		{
@@ -48,7 +48,7 @@ public static class ActionClassifier
 				{
 					bool equipped = inventory.TryGetValue(mat.ItemType, out var invEntry)
 						&& invEntry.IsEquipped;
-					allMissing[mat.ItemType] = new MissingItem
+					allMissing[mat.ItemType] = new MergedNeed
 					{
 						ItemType = mat.ItemType,
 						TotalNeeded = deficit,
@@ -260,7 +260,7 @@ public static class ActionClassifier
 		return result;
 	}
 
-	private static ActionItem MakeActionItem(MissingItem missing, ItemSource source)
+	private static ActionItem MakeActionItem(MergedNeed missing, ItemSource source)
 	{
 		string dropRate = source.DropRate > 0 && source.DropRate < 1f
 			? $"1/{(int)(1f / source.DropRate)}"
@@ -281,7 +281,7 @@ public static class ActionClassifier
 		};
 	}
 
-	private static ActionItem MakeActionItem(MissingItem missing, string description)
+	private static ActionItem MakeActionItem(MergedNeed missing, string description)
 	{
 		return new ActionItem
 		{
@@ -419,7 +419,11 @@ public static class ActionClassifier
 		};
 	}
 
-	private class MissingItem
+	/// <summary>
+	/// Merged view of a material need across multiple goals.
+	/// Holds the core material data plus goal attribution.
+	/// </summary>
+	private class MergedNeed
 	{
 		public int ItemType;
 		public int TotalNeeded;
