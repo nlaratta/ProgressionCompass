@@ -22,6 +22,7 @@ public class UIAnalysisIndicator : UIElement
 	public event Action<int> OnPinClicked;
 	public Func<int, bool> IsItemTracked { get; set; }
 	public bool HasItem => _itemType > ItemID.None;
+	public int QueueCount { get; set; }
 
 	public UIAnalysisIndicator()
 	{
@@ -92,9 +93,17 @@ public class UIAnalysisIndicator : UIElement
 		// Item icon
 		UIHelper.DrawItemIcon(spriteBatch, _itemType, new Vector2(dims.X + 6f, dims.Y + 2f), 22f);
 
-		// "Analyzing: ItemName"
+		// "Analyzing: ItemName" + optional queue badge
 		string text = $"Analyzing: {_displayItem?.Name ?? "?"}";
 		Utils.DrawBorderString(spriteBatch, text, new Vector2(dims.X + 32f, dims.Y + 5f), Color.White, 0.65f);
+
+		if (QueueCount > 1)
+		{
+			float textW = FontAssets.MouseText.Value.MeasureString(text).X * 0.65f;
+			string queueText = $"(+{QueueCount - 1} queued)";
+			Utils.DrawBorderString(spriteBatch, queueText,
+				new Vector2(dims.X + 36f + textW, dims.Y + 6f), new Color(120, 180, 255), 0.55f);
+		}
 
 		// Pin button
 		bool tracked = IsItemTracked?.Invoke(_itemType) ?? false;

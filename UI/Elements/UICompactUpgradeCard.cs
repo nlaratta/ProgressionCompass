@@ -18,15 +18,18 @@ public class UICompactUpgradeCard : UIElement
 {
 	private readonly UpgradeItem _item;
 	private readonly Action<int> _onAnalyze;
+	private readonly Action<int> _onPin;
 	private readonly Item _displayItem;
 	private readonly string _sourceHint;
 
 	private const float CardHeight = 48f;
+	private const float PinSize = 14f;
 
-	public UICompactUpgradeCard(UpgradeItem item, Action<int> onAnalyze)
+	public UICompactUpgradeCard(UpgradeItem item, Action<int> onAnalyze, Action<int> onPin = null)
 	{
 		_item = item;
 		_onAnalyze = onAnalyze;
+		_onPin = onPin;
 
 		_displayItem = new Item();
 		_displayItem.SetDefaults(item.ItemType);
@@ -41,6 +44,21 @@ public class UICompactUpgradeCard : UIElement
 	public override void LeftClick(UIMouseEvent evt)
 	{
 		base.LeftClick(evt);
+
+		// Check if click is on pin button (top-right corner)
+		if (_onPin != null)
+		{
+			var dims = GetDimensions();
+			float pinX = dims.X + dims.Width - PinSize - 4f;
+			float pinY = dims.Y + 2f;
+			if (Main.mouseX >= pinX && Main.mouseX < pinX + PinSize + 4f
+				&& Main.mouseY >= pinY && Main.mouseY < pinY + PinSize + 4f)
+			{
+				_onPin.Invoke(_item.ItemType);
+				return;
+			}
+		}
+
 		_onAnalyze?.Invoke(_item.ItemType);
 	}
 
@@ -54,13 +72,28 @@ public class UICompactUpgradeCard : UIElement
 		bool hover = IsMouseHovering;
 		if (hover)
 		{
-			UIHelper.ShowItemTooltip(_item.ItemType);
+			// Show item tooltip with improvement text as suffix
+			string suffix = _item.ImprovementText != null ? $"\n{_item.ImprovementText}" : null;
+			UIHelper.ShowItemTooltip(_item.ItemType, suffix);
 			Main.LocalPlayer.mouseInterface = true;
 		}
 
 		// Background
 		Color bg = hover ? new Color(40, 50, 80) * 0.7f : new Color(30, 35, 60) * 0.5f;
 		spriteBatch.Draw(TextureAssets.MagicPixel.Value, dims.ToRectangle(), bg);
+
+		// Pin button (top-right corner)
+		if (_onPin != null)
+		{
+			float pinX = x + w - PinSize - 4f;
+			float pinY = y + 2f;
+			bool pinHover = Main.mouseX >= pinX && Main.mouseX < pinX + PinSize + 4f
+				&& Main.mouseY >= pinY && Main.mouseY < pinY + PinSize + 4f;
+			string pinText = _item.IsTracked ? "*" : "+";
+			Color pinColor = _item.IsTracked ? new Color(80, 220, 80)
+				: pinHover ? Color.White : new Color(100, 110, 140);
+			Utils.DrawBorderString(spriteBatch, pinText, new Vector2(pinX + 2f, pinY), pinColor, 0.6f);
+		}
 
 		// Rarity accent (left 3px bar)
 		Color rarityColor = UIHelper.GetRarityColor(_displayItem.rare);

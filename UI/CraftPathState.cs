@@ -373,6 +373,8 @@ public class CraftPathState : UIState
 
 			system.WindowState.OnAnalyzeItem -= OnDashboardAnalyze;
 			system.WindowState.OnAnalyzeItem += OnDashboardAnalyze;
+			system.WindowState.OnPinItem -= OnItemPinned;
+			system.WindowState.OnPinItem += OnItemPinned;
 		}
 	}
 
@@ -508,6 +510,10 @@ public class CraftPathState : UIState
 	public override void Update(GameTime gameTime)
 	{
 		base.Update(gameTime);
+
+		// Keep queue indicator current
+		if (_analysisIndicator != null)
+			_analysisIndicator.QueueCount = _queue.Count;
 
 		if (_pendingResult != null)
 		{

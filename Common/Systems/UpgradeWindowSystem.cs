@@ -98,6 +98,7 @@ public class UpgradeRecommendationsState : UIState
 	private UpgradeRecommendationsPanel _panel;
 
 	public event Action<int> OnAnalyzeItem;
+	public event Action<int> OnPinItem;
 
 	public UIElement GetPanel() => _panel;
 
@@ -107,6 +108,7 @@ public class UpgradeRecommendationsState : UIState
 		_panel.HAlign = 0.3f;
 		_panel.VAlign = 0.4f;
 		_panel.OnAnalyzeItem += type => OnAnalyzeItem?.Invoke(type);
+		_panel.OnPinItem += type => OnPinItem?.Invoke(type);
 		_panel.OnCloseClicked += () => ModContent.GetInstance<UpgradeWindowSystem>()?.Close();
 		Append(_panel);
 	}
@@ -152,6 +154,7 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 	private UI.Elements.UIBossProgressionCard _bossCard;
 
 	public event Action<int> OnAnalyzeItem;
+	public event Action<int> OnPinItem;
 	public event Action OnCloseClicked;
 
 	private const float PanelW = 1080f;
@@ -386,7 +389,7 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 			switch (upgrade.Proximity)
 			{
 				case Proximity.CraftableNow:
-					_readyList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type)));
+					_readyList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type), type => OnPinItem?.Invoke(type)));
 					_readyCount++;
 					break;
 				case Proximity.AlmostReady:
@@ -395,11 +398,11 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 					// a common material like Wood isn't meaningful progress
 					if (upgrade.LeafMaterialsTotal < 3 && !OwnsNonTrivialIngredient(upgrade))
 						break;
-					_nearlyList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type)));
+					_nearlyList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type), type => OnPinItem?.Invoke(type)));
 					_nearlyCount++;
 					break;
 				case Proximity.NeedsWork:
-					_buildingList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type)));
+					_buildingList?.Add(new UICompactUpgradeCard(upgrade, type => OnAnalyzeItem?.Invoke(type), type => OnPinItem?.Invoke(type)));
 					_buildingCount++;
 					break;
 				// FarAway items not shown in columns

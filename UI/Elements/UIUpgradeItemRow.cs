@@ -70,7 +70,10 @@ public class UIUpgradeItemRow : UIElement
         bool hovering = IsMouseHovering;
 
         if (hovering)
-            UIHelper.ShowItemTooltip(_item.ItemType);
+        {
+            string suffix = _item.ImprovementText != null ? $"\n{_item.ImprovementText}" : null;
+            UIHelper.ShowItemTooltip(_item.ItemType, suffix);
+        }
 
         // ── Background with proximity tint ───────────────────────
         Color bg;
