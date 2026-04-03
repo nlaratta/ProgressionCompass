@@ -4,6 +4,7 @@ using Terraria;
 using Terraria.ID;
 using ProgressionCompass.Common.Systems;
 using ProgressionCompass.Content.Graph;
+using Terraria.ModLoader;
 
 namespace ProgressionCompass.Content.Progression;
 
@@ -70,8 +71,35 @@ public class EffortAnalyzer
 	private EffortCost ComputeEffort(int itemType)
 	{
 		var sources = _sourceSystem?.GetSources(itemType, _worldContext);
+
+		// If no non-recipe sources exist, check if it's craftable
 		if (sources == null || sources.Count == 0)
+		{
+			var recipeIndex = ModContent.GetInstance<RecipeIndexSystem>();
+			if (recipeIndex?.RecipesByResult != null && recipeIndex.RecipesByResult.ContainsKey(itemType))
+			{
+				// Craftable item with no drop/shop/gather source.
+				// Estimate effort from recipe complexity: simple (1-2 ingredients) = low effort
+				var recipes = recipeIndex.RecipesByResult[itemType];
+				int minIngredients = int.MaxValue;
+				foreach (var recipe in recipes)
+				{
+					int count = 0;
+					foreach (var ing in recipe.requiredItem)
+						if (ing.type > ItemID.None) count++;
+					if (count < minIngredients) minIngredients = count;
+				}
+				float craftEffort = minIngredients switch
+				{
+					<= 1 => 1f,
+					2 => 2f,
+					3 => 3f,
+					_ => 5f
+				};
+				return new EffortCost { BaseEffort = craftEffort, SuccessRate = 1f, TravelPenalty = 1f };
+			}
 			return EffortCost.Unknown;
+		}
 
 		// Find the cheapest source
 		EffortCost best = EffortCost.Unknown;
@@ -103,6 +131,7 @@ public class EffortAnalyzer
 			ItemSourceType.Fishing => 6f,
 			ItemSourceType.ChestLoot => 5f,
 			ItemSourceType.Shimmer => 20f,
+			ItemSourceType.Other => 100f, // Inferred "check wiki" sources — high effort
 			_ => 15f
 		};
 

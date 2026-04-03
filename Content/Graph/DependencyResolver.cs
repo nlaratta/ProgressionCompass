@@ -517,6 +517,7 @@ public class DependencyResolver
 				ItemSourceType.Fishing => Progression.ScoringConstants.AcquireCostFishing,
 				ItemSourceType.ChestLoot => Progression.ScoringConstants.AcquireCostChest,
 				ItemSourceType.Shimmer => int.MaxValue,
+				ItemSourceType.Other => int.MaxValue, // Inferred "check wiki" sources never beat recipes
 				_ => Progression.ScoringConstants.AcquireCostOther
 			};
 
