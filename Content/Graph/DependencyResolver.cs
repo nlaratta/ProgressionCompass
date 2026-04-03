@@ -38,6 +38,10 @@ public class DependencyResolver
 	private readonly RecipeIndexSystem _recipeIndex;
 	private readonly ItemSourceSystem _sourceSystem;
 	private readonly Dictionary<int, int> _recipePreferences;
+
+	// Per-instance caches — avoid repeated lookups for the same item within one resolve cycle
+	private readonly Dictionary<int, AcquireNode> _acquireCache = [];
+	private readonly Dictionary<int, int> _acquireCostCache = [];
 	private readonly WorldContext _worldContext;
 	private readonly Progression.Tier _currentTier;
 
@@ -368,8 +372,17 @@ public class DependencyResolver
 
 	private AcquireNode MakeAcquireNode(int itemType, int quantity)
 	{
-		var sources = _sourceSystem?.GetSources(itemType, _worldContext) ?? [];
-		return new AcquireNode(itemType, quantity, sources);
+		// Cache source lookups — same item always has the same sources within one resolve cycle
+		if (!_acquireCache.TryGetValue(itemType, out var cached))
+		{
+			var sources = _sourceSystem?.GetSources(itemType, _worldContext) ?? [];
+			cached = new AcquireNode(itemType, quantity, sources);
+			_acquireCache[itemType] = cached;
+			return cached;
+		}
+
+		// Same sources, possibly different quantity
+		return quantity == cached.Quantity ? cached : new AcquireNode(itemType, quantity, cached.Sources);
 	}
 
 	/// <summary>
@@ -440,6 +453,9 @@ public class DependencyResolver
 	/// </summary>
 	private int EstimateAcquireCost(int itemType, List<ItemSource> sources)
 	{
+		if (_acquireCostCache.TryGetValue(itemType, out int cachedCost))
+			return cachedCost;
+
 		if (sources == null || sources.Count == 0)
 			return int.MaxValue;
 
@@ -470,6 +486,7 @@ public class DependencyResolver
 				bestCost = cost;
 		}
 
+		_acquireCostCache[itemType] = bestCost;
 		return bestCost;
 	}
 

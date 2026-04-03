@@ -415,12 +415,9 @@ public class CraftPathState : UIState
 		var config = ModContent.GetInstance<CraftPathConfig>();
 		float chestRange = config?.ChestScanRange ?? InventoryScanner.DefaultChestRangeTiles;
 
-		_lastInventory = InventoryScanner.Scan(_chestsEnabled, chestRange);
-		var inventoryCopy = new Dictionary<int, InventoryEntry>(_lastInventory);
-		bool includeChests = _chestsEnabled;
-		var worldContext = global::ProgressionCompass.Content.Progression.WorldContext.Capture();
-		_lastWorldContext = worldContext;
-		var tier = global::ProgressionCompass.Content.Progression.ProgressionTier.Detect();
+		var snap = global::ProgressionCompass.Content.Progression.SystemSnapshot.Capture(_chestsEnabled, chestRange);
+		_lastInventory = snap.Inventory;
+		_lastWorldContext = snap.World;
 
 		_resolving = true;
 
@@ -428,7 +425,8 @@ public class CraftPathState : UIState
 		{
 			try
 			{
-				var result = _queue.ResolveAll(recipeIndex, sourceSystem, inventoryCopy, includeChests, _recipePreferences, worldContext, tier);
+				var inventoryCopy = new Dictionary<int, InventoryEntry>(snap.Inventory);
+				var result = _queue.ResolveAll(recipeIndex, sourceSystem, inventoryCopy, snap.IncludeChests, _recipePreferences, snap.World, snap.PlayerTier);
 				_pendingResult = result;
 			}
 			catch (Exception ex)
@@ -453,28 +451,11 @@ public class CraftPathState : UIState
 		var config = ModContent.GetInstance<CraftPathConfig>();
 		float chestRange = config?.ChestScanRange ?? InventoryScanner.DefaultChestRangeTiles;
 
-		var inventory = _lastInventory ?? InventoryScanner.Scan(_chestsEnabled, chestRange);
-		var invCopy = new Dictionary<int, InventoryEntry>(inventory);
-		bool includeChests = _chestsEnabled;
-		Tier tier = ProgressionTier.Detect();
-		var worldContext = global::ProgressionCompass.Content.Progression.WorldContext.Capture();
-		PlayerClass detected = PlayerClass.Mixed;
-		int armorDefense = 0;
-		try
-		{
-			var player = Main.LocalPlayer;
-			if (player != null)
-			{
-				detected = ClassDetector.Detect(player);
-				for (int i = 0; i < 3; i++)
-					if (player.armor[i].type > ItemID.None) armorDefense += player.armor[i].defense;
-			}
-		}
-		catch { }
+		// Single snapshot captures ALL main-thread state at one consistent point
+		var snap = global::ProgressionCompass.Content.Progression.SystemSnapshot.Capture(_chestsEnabled, chestRange);
+		_lastInventory = snap.Inventory;
 
-		// Compute player stats + boss data on main thread (reads game state)
-		var playerStats = GearRecommender.ComputePlayerStats(invCopy, includeChests, armorDefense);
-		var nextBosses = BossDatabase.GetNextBosses(tier, sourceSystem, worldContext);
+		var nextBosses = BossDatabase.GetNextBosses(snap.PlayerTier, sourceSystem, snap.World);
 
 		_scanningProgress = true;
 
@@ -482,28 +463,27 @@ public class CraftPathState : UIState
 		{
 			try
 			{
-				var combos = CombinationScanner.Scan(recipeIndex, sourceSystem, invCopy, includeChests, tier, worldContext);
-				var recs = GearRecommender.Recommend(armorDefense, PlayerClass.Mixed, tier, recipeIndex, sourceSystem, invCopy, includeChests, worldContext);
+				var invCopy = new Dictionary<int, InventoryEntry>(snap.Inventory);
+				var combos = CombinationScanner.Scan(recipeIndex, sourceSystem, invCopy, snap.IncludeChests, snap.PlayerTier, snap.World);
+				var recs = GearRecommender.Recommend(snap.ArmorDefense, PlayerClass.Mixed, snap.PlayerTier, recipeIndex, sourceSystem, invCopy, snap.IncludeChests, snap.World);
 
-				// Resolve each recommended item that CombinationScanner didn't cover.
-				// This gives every recommendation tree-based completion data so
-				// UpgradeItemBuilder always has resolver results for proximity/acquisition.
+				// Resolve each recommended item not already covered by CombinationScanner
 				var comboTypes = new HashSet<int>();
 				foreach (var c in combos)
 					comboTypes.Add(c.ItemType);
 
 				var resolver = new global::ProgressionCompass.Content.Graph.DependencyResolver(
-					recipeIndex, sourceSystem, worldContext: worldContext, currentTier: tier);
+					recipeIndex, sourceSystem, worldContext: snap.World, currentTier: snap.PlayerTier);
 
 				foreach (var rec in recs)
 				{
 					if (comboTypes.Contains(rec.ItemType))
-						continue; // Already resolved by CombinationScanner
+						continue;
 
 					try
 					{
-						var inv = new Dictionary<int, global::ProgressionCompass.Content.Graph.InventoryEntry>(invCopy);
-						var result = resolver.Resolve(rec.ItemType, 1, inv, includeChests);
+						var inv = new Dictionary<int, InventoryEntry>(snap.Inventory);
+						var result = resolver.Resolve(rec.ItemType, 1, inv, snap.IncludeChests);
 						if (result?.Materials == null || result.Materials.Count == 0)
 							continue;
 
@@ -512,10 +492,10 @@ public class CraftPathState : UIState
 						var missing = new List<(int, int)>();
 						foreach (var mat in result.Materials)
 						{
-							if (mat.IsComplete(includeChests))
+							if (mat.IsComplete(snap.IncludeChests))
 								owned++;
 							else
-								missing.Add((mat.ItemType, mat.Deficit(includeChests)));
+								missing.Add((mat.ItemType, mat.Deficit(snap.IncludeChests)));
 						}
 
 						combos.Add(new global::ProgressionCompass.Content.Progression.CombinationResult
@@ -536,11 +516,11 @@ public class CraftPathState : UIState
 				{
 					Combinations = combos,
 					Recommendations = recs,
-					CurrentTier = tier,
-					DetectedClass = detected,
-					Stats = playerStats,
+					CurrentTier = snap.PlayerTier,
+					DetectedClass = snap.DetectedClass,
+					Stats = snap.Stats,
 					NextBosses = nextBosses,
-					WorldContext = worldContext
+					WorldContext = snap.World
 				};
 			}
 			catch (Exception ex)
