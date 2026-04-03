@@ -132,8 +132,8 @@ public static class ActionClassifier
 					break;
 
 				case ItemSourceType.NPCDrop:
-					// Group by the NPC's biome/location
-					string location = GetNPCLocation(bestSource.SourceEntityId);
+					// Group by the NPC's biome/location (enriched with time/event from bestiary)
+					string location = BiomeMapper.GetEnrichedLocation(bestSource.SourceEntityId);
 					if (!farmByLocation.ContainsKey(location))
 						farmByLocation[location] = [];
 					farmByLocation[location].Add(MakeActionItem(missing, bestSource));

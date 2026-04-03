@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Terraria;
 using Terraria.GameContent.Bestiary;
 using Terraria.ID;
@@ -271,6 +272,114 @@ public static class BiomeMapper
 		if (lower.Contains("frost legion")) return "Use Snow Globe";
 		if (lower.Contains("old one")) return "Use Eternia Crystal at Eternia Crystal Stand";
 		return null;
+	}
+
+	// ── Rich Spawn Info ─────────────────────────────────────────
+
+	/// <summary>
+	/// Structured spawn condition data parsed from bestiary keys.
+	/// </summary>
+	public class NpcSpawnInfo
+	{
+		public string Location { get; init; }
+		public string TimeOfDay { get; init; }   // "Day" / "Night" / null
+		public string Event { get; init; }        // "Blood Moon", "Rain", etc. / null
+		public string Invasion { get; init; }     // "Goblins", "Pirates", etc. / null
+		public List<string> AllBiomes { get; init; } = [];
+	}
+
+	/// <summary>
+	/// Returns rich spawn condition data parsed from bestiary keys.
+	/// Falls back to heuristic if bestiary has no data.
+	/// </summary>
+	public static NpcSpawnInfo GetNpcSpawnInfo(int npcId)
+	{
+		if (npcId <= 0)
+			return new NpcSpawnInfo { Location = "Unknown" };
+
+		try
+		{
+			var entry = Main.BestiaryDB?.FindEntryByNPCID(npcId);
+			if (entry?.Info == null)
+				return new NpcSpawnInfo { Location = GetNPCLocationHeuristic(npcId) };
+
+			var biomes = new List<string>();
+			string timeOfDay = null;
+			string eventName = null;
+			string invasion = null;
+
+			foreach (var element in entry.Info)
+			{
+				if (element is not SpawnConditionBestiaryInfoElement spawnCond)
+					continue;
+
+				string key = null;
+				try { key = spawnCond.GetDisplayNameKey(); } catch { continue; }
+				if (string.IsNullOrEmpty(key)) continue;
+
+				// Parse structured key: "Bestiary_Category.Name"
+				int dot = key.IndexOf('.');
+				if (dot <= 0) continue;
+				string category = key[..dot];
+				string condName = key[(dot + 1)..];
+
+				string displayName = null;
+				try { displayName = Terraria.Localization.Language.GetTextValue(key); } catch { }
+				if (string.IsNullOrEmpty(displayName) || displayName == "Unknown")
+					displayName = condName;
+
+				switch (category)
+				{
+					case "Bestiary_Biomes":
+						biomes.Add(displayName);
+						break;
+					case "Bestiary_Times":
+						timeOfDay = condName == "DayTime" ? "Day" : "Night";
+						break;
+					case "Bestiary_Events":
+						eventName = displayName;
+						break;
+					case "Bestiary_Invasions":
+						invasion = displayName;
+						break;
+				}
+			}
+
+			string location = biomes.Count > 0 ? string.Join(" / ", biomes.Take(2)) : GetNPCLocationHeuristic(npcId);
+
+			return new NpcSpawnInfo
+			{
+				Location = location,
+				TimeOfDay = timeOfDay,
+				Event = eventName,
+				Invasion = invasion,
+				AllBiomes = biomes
+			};
+		}
+		catch
+		{
+			return new NpcSpawnInfo { Location = GetNPCLocationHeuristic(npcId) };
+		}
+	}
+
+	/// <summary>
+	/// Returns a location string enriched with time/event info from the bestiary.
+	/// E.g. "Surface (Night)" or "Snow biome (Blizzard)".
+	/// </summary>
+	public static string GetEnrichedLocation(int npcId)
+	{
+		var info = GetNpcSpawnInfo(npcId);
+		if (info == null)
+			return GetNPCLocation(npcId);
+
+		string result = info.Location ?? "Unknown";
+		if (info.TimeOfDay != null)
+			result = $"{result} ({info.TimeOfDay})";
+		else if (info.Event != null)
+			result = $"{result} ({info.Event})";
+		else if (info.Invasion != null)
+			result = $"{result} ({info.Invasion})";
+		return result;
 	}
 
 	// ── Bestiary + Heuristic (internal) ─────────────────────────
