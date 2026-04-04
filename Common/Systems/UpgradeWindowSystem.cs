@@ -451,7 +451,7 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		// Render groups with 3+ items as tier cards, split smaller groups back to individual
 		foreach (var (barType, group) in barGroups)
 		{
-			if (group.Count >= 3)
+			if (group.Count >= 2)
 			{
 				var barItem = ContentSamples.ItemsByType.GetValueOrDefault(barType);
 				string tierName = barItem?.Name ?? $"Tier {barType}";

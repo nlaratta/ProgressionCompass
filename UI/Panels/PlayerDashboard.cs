@@ -199,7 +199,7 @@ public class PlayerDashboard : UIElement
 		var displayItems = new List<UIElement>();
 		foreach (var (barType, group) in barGroups)
 		{
-			if (group.Count >= 3)
+			if (group.Count >= 2)
 			{
 				group.Sort((a, b) => b.Score.CompareTo(a.Score));
 				var barItem = ContentSamples.ItemsByType.GetValueOrDefault(barType);
