@@ -203,7 +203,8 @@ public class PlayerDashboard : UIElement
 			{
 				group.Sort((a, b) => b.Score.CompareTo(a.Score));
 				var barItem = ContentSamples.ItemsByType.GetValueOrDefault(barType);
-				var card = new UITierGroupCard(barItem?.Name ?? "Tier", barType, group,
+				string tierName = barItem?.Name ?? "Tier";
+				var card = new UITierGroupCard(tierName, barType, group,
 					type => OnAnalyzeItem?.Invoke(type),
 					type => OnPinItem?.Invoke(type));
 				displayItems.Add(card);
@@ -235,33 +236,32 @@ public class PlayerDashboard : UIElement
 		if (item.MissingItems == null || item.MissingItems.Count == 0)
 			return 0;
 
-		HashSet<int> barTypes = [
-			ItemID.CopperBar, ItemID.TinBar, ItemID.IronBar, ItemID.LeadBar,
-			ItemID.SilverBar, ItemID.TungstenBar, ItemID.GoldBar, ItemID.PlatinumBar,
-			ItemID.CobaltBar, ItemID.PalladiumBar, ItemID.MythrilBar, ItemID.OrichalcumBar,
-			ItemID.AdamantiteBar, ItemID.TitaniumBar,
-			ItemID.DemoniteBar, ItemID.CrimtaneBar, ItemID.HellstoneBar,
-			ItemID.HallowedBar, ItemID.ChlorophyteBar, ItemID.ShroomiteBar, ItemID.SpectreBar
-		];
-
 		foreach (var (matType, _) in item.MissingItems)
-			if (barTypes.Contains(matType))
-				return matType;
-
-		HashSet<int> oreTypes = [
-			ItemID.CopperOre, ItemID.TinOre, ItemID.IronOre, ItemID.LeadOre,
-			ItemID.SilverOre, ItemID.TungstenOre, ItemID.GoldOre, ItemID.PlatinumOre,
-			ItemID.CobaltOre, ItemID.PalladiumOre, ItemID.MythrilOre, ItemID.OrichalcumOre,
-			ItemID.AdamantiteOre, ItemID.TitaniumOre,
-			ItemID.DemoniteOre, ItemID.CrimtaneOre, ItemID.Hellstone
-		];
-
-		foreach (var (matType, _) in item.MissingItems)
-			if (oreTypes.Contains(matType))
-				return matType;
+		{
+			int tier = GetCanonicalTier(matType);
+			if (tier != 0) return tier;
+		}
 
 		return 0;
 	}
+
+	private static int GetCanonicalTier(int itemType) => itemType switch
+	{
+		ItemID.CopperBar or ItemID.TinBar or ItemID.CopperOre or ItemID.TinOre => ItemID.CopperBar,
+		ItemID.IronBar or ItemID.LeadBar or ItemID.IronOre or ItemID.LeadOre => ItemID.IronBar,
+		ItemID.SilverBar or ItemID.TungstenBar or ItemID.SilverOre or ItemID.TungstenOre => ItemID.SilverBar,
+		ItemID.GoldBar or ItemID.PlatinumBar or ItemID.GoldOre or ItemID.PlatinumOre => ItemID.GoldBar,
+		ItemID.DemoniteBar or ItemID.CrimtaneBar or ItemID.DemoniteOre or ItemID.CrimtaneOre => ItemID.DemoniteBar,
+		ItemID.CobaltBar or ItemID.PalladiumBar or ItemID.CobaltOre or ItemID.PalladiumOre => ItemID.CobaltBar,
+		ItemID.MythrilBar or ItemID.OrichalcumBar or ItemID.MythrilOre or ItemID.OrichalcumOre => ItemID.MythrilBar,
+		ItemID.AdamantiteBar or ItemID.TitaniumBar or ItemID.AdamantiteOre or ItemID.TitaniumOre => ItemID.AdamantiteBar,
+		ItemID.HellstoneBar or ItemID.Hellstone => ItemID.HellstoneBar,
+		ItemID.HallowedBar => ItemID.HallowedBar,
+		ItemID.ChlorophyteBar or ItemID.ChlorophyteOre => ItemID.ChlorophyteBar,
+		ItemID.ShroomiteBar => ItemID.ShroomiteBar,
+		ItemID.SpectreBar => ItemID.SpectreBar,
+		_ => 0
+	};
 
 	private void AddShowMoreLess(string section, int totalCount)
 	{

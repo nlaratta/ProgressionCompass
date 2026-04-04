@@ -453,7 +453,10 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 		{
 			if (group.Count >= 2)
 			{
-				var barItem = ContentSamples.ItemsByType.GetValueOrDefault(barType);
+				// Show world's preferred variant name (e.g., "Tin Bar" in a Tin world)
+				int displayBarType = _worldContext.PreferredOreItem(barType);
+				var barItem = ContentSamples.ItemsByType.GetValueOrDefault(displayBarType)
+					?? ContentSamples.ItemsByType.GetValueOrDefault(barType);
 				string tierName = barItem?.Name ?? $"Tier {barType}";
 				var card = MakeTierGroupCard(tierName, barType, group);
 				list.Add(card);
@@ -477,41 +480,46 @@ internal class UpgradeRecommendationsPanel : UI.Elements.UIDraggablePanel
 	/// Detects the primary bar/ore ingredient from an item's missing materials.
 	/// Returns the bar ItemID if found, 0 otherwise.
 	/// </summary>
+	/// <summary>
+	/// Detects the ore tier from an item's missing materials.
+	/// Returns a canonical tier key — both variants (Copper/Tin) map to the same key.
+	/// This ensures items from both world variants group together.
+	/// </summary>
 	private static int DetectPrimaryBar(UpgradeItem item)
 	{
 		if (item.MissingItems == null || item.MissingItems.Count == 0)
 			return 0;
 
-		// Known bar ItemIDs
-		HashSet<int> barTypes = [
-			ItemID.CopperBar, ItemID.TinBar, ItemID.IronBar, ItemID.LeadBar,
-			ItemID.SilverBar, ItemID.TungstenBar, ItemID.GoldBar, ItemID.PlatinumBar,
-			ItemID.CobaltBar, ItemID.PalladiumBar, ItemID.MythrilBar, ItemID.OrichalcumBar,
-			ItemID.AdamantiteBar, ItemID.TitaniumBar,
-			ItemID.DemoniteBar, ItemID.CrimtaneBar, ItemID.HellstoneBar,
-			ItemID.HallowedBar, ItemID.ChlorophyteBar, ItemID.ShroomiteBar,
-			ItemID.SpectreBar
-		];
-
 		foreach (var (matType, _) in item.MissingItems)
-			if (barTypes.Contains(matType))
-				return matType;
-
-		// Also check for ore as primary missing material
-		HashSet<int> oreTypes = [
-			ItemID.CopperOre, ItemID.TinOre, ItemID.IronOre, ItemID.LeadOre,
-			ItemID.SilverOre, ItemID.TungstenOre, ItemID.GoldOre, ItemID.PlatinumOre,
-			ItemID.CobaltOre, ItemID.PalladiumOre, ItemID.MythrilOre, ItemID.OrichalcumOre,
-			ItemID.AdamantiteOre, ItemID.TitaniumOre,
-			ItemID.DemoniteOre, ItemID.CrimtaneOre, ItemID.Hellstone
-		];
-
-		foreach (var (matType, _) in item.MissingItems)
-			if (oreTypes.Contains(matType))
-				return matType;
+		{
+			int tier = GetCanonicalTier(matType);
+			if (tier != 0) return tier;
+		}
 
 		return 0;
 	}
+
+	/// <summary>
+	/// Maps any bar or ore ItemID to a canonical tier key.
+	/// Both variants map to the same key (e.g., CopperBar and TinBar → CopperBar).
+	/// </summary>
+	private static int GetCanonicalTier(int itemType) => itemType switch
+	{
+		ItemID.CopperBar or ItemID.TinBar or ItemID.CopperOre or ItemID.TinOre => ItemID.CopperBar,
+		ItemID.IronBar or ItemID.LeadBar or ItemID.IronOre or ItemID.LeadOre => ItemID.IronBar,
+		ItemID.SilverBar or ItemID.TungstenBar or ItemID.SilverOre or ItemID.TungstenOre => ItemID.SilverBar,
+		ItemID.GoldBar or ItemID.PlatinumBar or ItemID.GoldOre or ItemID.PlatinumOre => ItemID.GoldBar,
+		ItemID.DemoniteBar or ItemID.CrimtaneBar or ItemID.DemoniteOre or ItemID.CrimtaneOre => ItemID.DemoniteBar,
+		ItemID.CobaltBar or ItemID.PalladiumBar or ItemID.CobaltOre or ItemID.PalladiumOre => ItemID.CobaltBar,
+		ItemID.MythrilBar or ItemID.OrichalcumBar or ItemID.MythrilOre or ItemID.OrichalcumOre => ItemID.MythrilBar,
+		ItemID.AdamantiteBar or ItemID.TitaniumBar or ItemID.AdamantiteOre or ItemID.TitaniumOre => ItemID.AdamantiteBar,
+		ItemID.HellstoneBar or ItemID.Hellstone => ItemID.HellstoneBar,
+		ItemID.HallowedBar => ItemID.HallowedBar,
+		ItemID.ChlorophyteBar or ItemID.ChlorophyteOre => ItemID.ChlorophyteBar,
+		ItemID.ShroomiteBar => ItemID.ShroomiteBar,
+		ItemID.SpectreBar => ItemID.SpectreBar,
+		_ => 0
+	};
 
 	private UITierGroupCard MakeTierGroupCard(string tierName, int barType, List<UpgradeItem> items)
 	{
