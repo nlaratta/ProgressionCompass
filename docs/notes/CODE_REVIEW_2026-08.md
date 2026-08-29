@@ -439,11 +439,24 @@ isn't populated until after AddShops() runs (which is after PostSetupContent)"*.
 So the author hit one instance of this class of problem already. And the failure
 mode is quiet — missing modded drops look like sparse data, not like a bug.
 
-Cheap to settle once B1 is fixed: log `_sourcesByItem.Count` at the end of
-`PostSetupContent` and again at the end of `PostAddRecipes` with Calamity
-loaded, and compare against a build that indexes in `PostSetupRecipes`. If the
-counts differ materially, this is real and it is the highest-impact data finding
-in this document.
+**Instrumentation is now wired up** (`Common/Systems/LoadOrderDiagnostics.cs`).
+It samples recipe count, NPC drop tables, item drop tables, bestiary spawn
+conditions, and catchable critters at `PostSetupContent`, `PostAddRecipes`,
+`PostSetupRecipes`, and `OnWorldLoad`, splitting each into vanilla vs modded —
+the modded half is what the hypothesis is actually about. One line per stage
+into `client.log`, prefixed `[loadorder]`. `/cpo loadorder` gives the same
+reading live in-game plus the current `ItemSourceSystem` index size.
+
+**Reading the result:** if the `PostSetupContent` line already matches the
+later lines, H1 is disproven and the indexing is fine where it is. If the
+numbers climb after it — particularly the `m` (modded) figures — the index is
+being built against incomplete data and should move to `PostSetupRecipes`.
+Run once with only this mod, then again with Calamity or Thorium enabled; the
+vanilla/modded split is what separates "tModLoader isn't ready yet" from
+"vanilla is ready but mods haven't contributed yet".
+
+Diagnostic only — reads game state, changes nothing. Delete the file and the
+`loadorder` case in `CraftPathTestCommand` once this is settled.
 
 ## Architecture
 

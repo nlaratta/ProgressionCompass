@@ -19,6 +19,13 @@ public class ItemSourceSystem : ModSystem
 {
 	private Dictionary<int, List<ItemSource>> _sourcesByItem;
 
+	/// <summary>
+	/// Number of items with at least one indexed source. Diagnostic support for
+	/// H1 (CODE_REVIEW_2026-08.md) — lets LoadOrderDiagnostics and
+	/// /cpo loadorder report how much this index actually captured.
+	/// </summary>
+	public int IndexedItemCount => _sourcesByItem?.Count ?? 0;
+
 	public List<ItemSource> GetSources(int itemType)
 	{
 		if (_sourcesByItem != null && _sourcesByItem.TryGetValue(itemType, out var sources))

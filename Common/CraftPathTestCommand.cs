@@ -16,7 +16,7 @@ namespace ProgressionCompass.Common;
 public class CraftPathTestCommand : ModCommand
 {
 	public override string Command => "cpo";
-	public override string Usage => "/cpo [zenith|terra|ankh|cell|cycle|stats|all]";
+	public override string Usage => "/cpo [zenith|terra|ankh|cell|cycle|stats|loadorder|all]";
 	public override string Description => "Test the Progression Compass resolver";
 	public override CommandType Type => CommandType.Chat;
 
@@ -53,6 +53,9 @@ public class CraftPathTestCommand : ModCommand
 			case "cycle":
 				RunCycleTest(caller, recipeIndex, sourceSystem);
 				break;
+			case "loadorder":
+				RunLoadOrder(caller, sourceSystem);
+				break;
 			case "all":
 				RunStats(caller, recipeIndex, sourceSystem);
 				RunItemTest(caller, recipeIndex, sourceSystem, ItemID.Zenith, "Zenith");
@@ -64,6 +67,23 @@ public class CraftPathTestCommand : ModCommand
 				caller.Reply($"Unknown test: {testName}. Use: {Usage}", Color.Yellow);
 				break;
 		}
+	}
+
+	/// <summary>
+	/// Live reading of the same counters LoadOrderDiagnostics samples during
+	/// loading, taken now that the world is fully up. Compare against the
+	/// [loadorder] lines in the log: if these numbers are higher than the ones
+	/// recorded at PostSetupContent, the source index was built too early.
+	/// See H1 in CODE_REVIEW_2026-08.md. Remove with LoadOrderDiagnostics.
+	/// </summary>
+	private static void RunLoadOrder(CommandCaller caller, ItemSourceSystem sourceSystem)
+	{
+		var now = LoadOrderDiagnostics.Capture("live");
+		caller.Reply("[CPO] Live content state (v = vanilla, m = modded):", Color.Cyan);
+		caller.Reply($"[CPO] {now}", Color.Cyan);
+		caller.Reply($"[CPO] ItemSourceSystem currently indexes {sourceSystem?.IndexedItemCount ?? -1} items.", Color.Cyan);
+		caller.Reply("[CPO] Compare against the [loadorder] lines in client.log.", Color.Gray);
+		Log.Info($"[loadorder] live (via /cpo loadorder) {now}");
 	}
 
 	private static void RunStats(CommandCaller caller, RecipeIndexSystem recipeIndex, ItemSourceSystem sourceSystem)
