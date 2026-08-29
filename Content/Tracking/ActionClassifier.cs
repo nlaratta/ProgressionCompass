@@ -146,6 +146,7 @@ public static class ActionClassifier
 
 				case ItemSourceType.ChestLoot:
 				case ItemSourceType.Gathering:
+				case ItemSourceType.Catching:
 				case ItemSourceType.Shimmer:
 					exploreItems.Add(MakeActionItem(missing, bestSource));
 					break;

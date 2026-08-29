@@ -111,6 +111,12 @@ public static class BiomeMapper
 				return [loc ?? "World Gathering"];
 			}
 
+			case ItemSourceType.Catching:
+			{
+				string loc = InferLocationFromDescription(source.Description);
+				return [loc != null ? $"Catching: {loc}" : "Critter Catching"];
+			}
+
 			case ItemSourceType.ChestLoot:
 			{
 				string loc = InferLocationFromDescription(source.Description);

@@ -11,6 +11,7 @@ public enum ItemSourceType
 	Fishing,
 	ChestLoot,
 	Gathering,
+	Catching,
 	Event,
 	Shimmer,
 	Other
@@ -44,6 +45,7 @@ public record ItemSource(
 		ItemSourceType.BagDrop => DropRate >= 1f ? 90 : 55,
 		ItemSourceType.NPCDrop => DropRate >= 0.1f ? 80 : 50,
 		ItemSourceType.Gathering => 70,
+		ItemSourceType.Catching => 68,
 		ItemSourceType.Event => 45,
 		ItemSourceType.Shimmer => 25,
 		ItemSourceType.Fishing => 40,

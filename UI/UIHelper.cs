@@ -123,6 +123,7 @@ public static class UIHelper
 		ItemSourceType.Event => new Color(200, 110, 255),
 		ItemSourceType.Shimmer => new Color(160, 120, 255),
 		ItemSourceType.Gathering => new Color(180, 220, 130),
+		ItemSourceType.Catching => new Color(150, 220, 170),
 		ItemSourceType.ChestLoot => new Color(255, 220, 110),
 		ItemSourceType.BagDrop => new Color(255, 160, 200),
 		_ => new Color(150, 150, 150)

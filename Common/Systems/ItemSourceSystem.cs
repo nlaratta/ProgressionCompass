@@ -22,10 +22,47 @@ public class ItemSourceSystem : ModSystem
 	public List<ItemSource> GetSources(int itemType)
 	{
 		if (_sourcesByItem != null && _sourcesByItem.TryGetValue(itemType, out var sources))
-			return sources;
+			return FilterDecraftWhenAlternativesExist(sources);
 
 		// Fallback: try to infer source from item properties
 		return InferSourceFromItem(itemType);
+	}
+
+	/// <summary>
+	/// Shimmer decrafting ("Decraft: Frozen Chest" → Ice Block) is indexed as a source
+	/// for every recipe-ingredient, but it's rarely the answer the player wants. When
+	/// a "real" source (drop, shop, gathering, catching, fishing, chest, direct shimmer
+	/// transform, event) exists, hide the decraft entries so the UI isn't cluttered
+	/// with "decraft this furniture" suggestions. Returns the original list when only
+	/// decrafts exist — that's the legitimate fallback case.
+	/// </summary>
+	private static List<ItemSource> FilterDecraftWhenAlternativesExist(List<ItemSource> sources)
+	{
+		if (sources == null || sources.Count == 0) return sources;
+
+		bool hasNonDecraft = false;
+		bool hasDecraft = false;
+		foreach (var s in sources)
+		{
+			bool isDecraft = s.Type == ItemSourceType.Shimmer
+				&& s.Description != null && s.Description.StartsWith("Decraft:");
+			if (isDecraft) hasDecraft = true;
+			else hasNonDecraft = true;
+			if (hasDecraft && hasNonDecraft) break;
+		}
+
+		if (!hasDecraft || !hasNonDecraft)
+			return sources; // Nothing to filter, or only decrafts — keep as-is
+
+		var filtered = new List<ItemSource>(sources.Count);
+		foreach (var s in sources)
+		{
+			if (s.Type == ItemSourceType.Shimmer
+				&& s.Description != null && s.Description.StartsWith("Decraft:"))
+				continue;
+			filtered.Add(s);
+		}
+		return filtered;
 	}
 
 	/// <summary>
@@ -670,6 +707,27 @@ public class ItemSourceSystem : ModSystem
 		AddGathering(ItemID.DirtBlock, "Dig: Everywhere");
 		AddGathering(ItemID.ClayBlock, "Dig: Surface / Underground");
 		AddGathering(ItemID.SiltBlock, "Dig: Underground");
+		AddGathering(ItemID.IceBlock, "Mine: Ice biome");
+		AddGathering(ItemID.SnowBlock, "Dig: Snow biome surface");
+		AddGathering(ItemID.SlushBlock, "Dig: Ice biome (underground)");
+		AddGathering(ItemID.AshBlock, "Dig: Underworld floor");
+		AddGathering(ItemID.MudBlock, "Dig: Jungle / Underground Jungle");
+		AddGathering(ItemID.Hive, "Mine: Jungle hive (underground)");
+		AddGathering(ItemID.EbonstoneBlock, "Mine: Corruption chasms (needs Nightmare Pickaxe+)");
+		AddGathering(ItemID.CrimstoneBlock, "Mine: Crimson (needs Deathbringer Pickaxe+)");
+		AddGathering(ItemID.PearlstoneBlock, "Mine: Hallow (Hardmode)");
+		AddGathering(ItemID.EbonsandBlock, "Dig: Corrupt desert");
+		AddGathering(ItemID.CrimsandBlock, "Dig: Crimson desert");
+		AddGathering(ItemID.PearlsandBlock, "Dig: Hallowed desert (Hardmode)");
+		AddGathering(ItemID.Marble, "Mine: Marble biome (underground)");
+		AddGathering(ItemID.Granite, "Mine: Granite biome (underground)");
+		AddGathering(ItemID.Cloud, "Gather: Sky islands / floating islands");
+		AddGathering(ItemID.RainCloud, "Gather: Sky during rain");
+		AddGathering(ItemID.LifeCrystal, "Mine: Underground (sparkling crystal clusters)");
+		AddGathering(ItemID.ManaCrystal, "Craft or gather: 3 Fallen Stars");
+		AddGathering(ItemID.LifeFruit, "Chop: Jungle plants (Hardmode, post-Plantera alt source)");
+		AddGathering(ItemID.Pumpkin, "Chop: Pumpkin plants (surface, Halloween / grown from seeds)");
+		AddGathering(ItemID.HoneyBlock, "Gather: Jungle hive (break solidified honey)");
 
 		// Gathered from world objects — not in drop tables
 		AddGathering(ItemID.Cobweb, "Gather: Spider caves / Underground");
@@ -677,6 +735,129 @@ public class ItemSourceSystem : ModSystem
 		AddGathering(ItemID.Coral, "Gather: Ocean floor");
 		AddGathering(ItemID.Cactus, "Chop: Desert cactus");
 		AddGathering(ItemID.FallenStar, "Gather: Surface at night (falls from sky)");
+		AddGathering(ItemID.Seashell, "Gather: Ocean beach (surface sand)");
+		AddGathering(ItemID.Starfish, "Gather: Ocean beach (surface sand)");
+		AddGathering(ItemID.MushroomGrassSeeds, "Gather: Glowing Mushroom biome (shake grass)");
+		AddGathering(ItemID.JungleGrassSeeds, "Gather: Jungle (shake grass)");
+		AddGathering(ItemID.CorruptSeeds, "Gather: Corruption (shake grass)");
+		AddGathering(ItemID.CrimsonSeeds, "Gather: Crimson (shake grass)");
+		AddGathering(ItemID.HallowedSeeds, "Gather: Hallow (shake grass, Hardmode)");
+		AddGathering(ItemID.BlueBrick, "Mine: Blue Dungeon");
+		AddGathering(ItemID.GreenBrick, "Mine: Green Dungeon");
+		AddGathering(ItemID.PinkBrick, "Mine: Pink Dungeon");
+
+		// Critters — caught with Bug Net / Golden Bug Net / Lavaproof Bug Net.
+		// These have NO drop-table entries (the critter NPC yields the item item
+		// form only via net-capture), so without these entries the system would
+		// have no idea how to obtain them.
+		IndexCritterSources();
+
+		// Modded ore backfill — picks up any ore that isn't in the vanilla list above.
+		BackfillOresFromTileSets();
+	}
+
+	/// <summary>
+	/// Any item whose <c>createTile</c> is a tile flagged in <c>TileID.Sets.Ore</c>
+	/// but which has no existing gathering source indexed gets a generic
+	/// "Mine: Underground" entry. This means modded ores (Calamity's Aerialite /
+	/// Cryonic Ore, Thorium's Aquaite / Thorium Ore, etc.) automatically register
+	/// as Gathering sources instead of falling through to the "Material: X (check
+	/// wiki)" inferred-source fallback. Vanilla ores are not touched — they keep
+	/// the hand-written biome/tier descriptions set in <c>IndexGatheringSources</c>.
+	/// </summary>
+	private void BackfillOresFromTileSets()
+	{
+		var oreSet = TileID.Sets.Ore;
+		if (oreSet == null) return;
+
+		int backfilled = 0;
+		foreach (var (itemType, item) in ContentSamples.ItemsByType)
+		{
+			if (itemType <= ItemID.None || item == null) continue;
+			// createTile == -1 (default) means "places no tile"; cast-to-uint folds
+			// the negative check and upper bound into one range comparison.
+			int tileType = item.createTile;
+			if ((uint)tileType >= (uint)oreSet.Length) continue;
+			if (!oreSet[tileType]) continue;
+			if (_sourcesByItem.ContainsKey(itemType)) continue; // Vanilla entry wins
+
+			AddGathering(itemType, "Mine: Underground (check wiki for biome)");
+			backfilled++;
+		}
+
+		if (backfilled > 0)
+			Common.Log.Info($"Backfilled {backfilled} modded ores via TileID.Sets.Ore");
+	}
+
+	/// <summary>
+	/// Critters are caught in item form by using a Bug Net (or Lavaproof Bug Net for
+	/// Underworld critters) on the critter NPC. Terraria stores the catch mapping
+	/// directly on the NPC: <c>NPC.catchItem</c> is the item ID produced when the
+	/// critter is netted. We iterate every NPC flagged as a critter in
+	/// <c>NPCID.Sets.CountsAsCritter</c>, read its catchItem, and use the bestiary
+	/// to derive a biome string.
+	///
+	/// This auto-detection has two benefits over a hand-curated list:
+	/// 1. Modded critters (Calamity, Thorium, etc.) are picked up automatically as
+	///    long as the mod sets CountsAsCritter and catchItem — which is the standard
+	///    pattern for any critter that should work with Bug Nets.
+	/// 2. Biome strings come from the bestiary's SpawnConditionBestiaryInfoElement,
+	///    which is the same data the game's bestiary UI displays — it's always more
+	///    accurate than hand-curation and stays in sync with vanilla updates.
+	/// </summary>
+	private void IndexCritterSources()
+	{
+		int count = 0;
+		int maxNpcId = Math.Min(NPCID.Sets.CountsAsCritter.Length, NPCLoader.NPCCount);
+
+		for (int npcId = 1; npcId < maxNpcId; npcId++)
+		{
+			if (!NPCID.Sets.CountsAsCritter[npcId])
+				continue;
+
+			int catchItemId;
+			bool isLavaCritter;
+			int rarity;
+			try
+			{
+				var npc = new NPC();
+				npc.SetDefaults(npcId);
+				catchItemId = npc.catchItem;
+				isLavaCritter = npc.lavaImmune;
+				rarity = npc.rarity;
+			}
+			catch
+			{
+				continue;
+			}
+
+			if (catchItemId <= ItemID.None)
+				continue;
+
+			// Biome hint from bestiary — falls back to heuristic keyword matching
+			// when an NPC has no bestiary entry (shouldn't happen for vanilla
+			// critters, but modded ones might omit bestiary registration).
+			string location = null;
+			try { location = global::ProgressionCompass.Content.Tracking.BiomeMapper.GetEnrichedLocation(npcId); }
+			catch { }
+
+			// Lavaproof Bug Net is required for lava-immune critters (Lavafly,
+			// MagmaSnail, Hell Butterfly in vanilla). Regular Bug Net otherwise.
+			string tool = isLavaCritter ? "Lavaproof Bug Net" : "Bug Net";
+
+			// Gold/rare variants get a "rare" annotation so the UI can communicate
+			// that the player shouldn't expect to find them on their first attempt.
+			string rareTag = rarity > 0 ? ", rare" : "";
+
+			string description = !string.IsNullOrEmpty(location) && location != "Unknown"
+				? $"Catch: {location}{rareTag} ({tool})"
+				: $"Catch{rareTag} ({tool})";
+
+			AddSource(catchItemId, new ItemSource(ItemSourceType.Catching, description, npcId));
+			count++;
+		}
+
+		Common.Log.Info($"Indexed {count} catchable critters via NPCID.Sets.CountsAsCritter");
 	}
 
 	private void AddGathering(int itemType, string description)

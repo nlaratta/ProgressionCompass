@@ -123,6 +123,7 @@ public class EffortAnalyzer
 		float baseEffort = source.Type switch
 		{
 			ItemSourceType.Gathering => IsAbundantGathering(source) ? 0.5f : 2f,
+			ItemSourceType.Catching => 1.5f,
 			ItemSourceType.NPCShop => _worldContext.IsNpcAvailable(source.SourceEntityId) ? 1f : 15f,
 			ItemSourceType.NPCDrop => DropEffort(source.DropRate),
 			ItemSourceType.BossDrop => 10f,

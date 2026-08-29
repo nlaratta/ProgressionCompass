@@ -241,6 +241,7 @@ public static class GearRecommender
 						Graph.ItemSourceType.ChestLoot => AcquisitionMethod.Exploration,
 						Graph.ItemSourceType.BagDrop => AcquisitionMethod.BossDrop,
 						Graph.ItemSourceType.Gathering => AcquisitionMethod.Exploration,
+						Graph.ItemSourceType.Catching => AcquisitionMethod.Exploration,
 						_ => AcquisitionMethod.Unknown
 					};
 				}

@@ -240,6 +240,7 @@ public static class SourcePriorityAnalyzer
 	{
 		if (source.Type == ItemSourceType.NPCShop) return ScoringConstants.AccessibilityShop;
 		if (source.Type == ItemSourceType.Gathering) return ScoringConstants.AccessibilityGathering;
+		if (source.Type == ItemSourceType.Catching) return ScoringConstants.AccessibilityGathering;
 		if (source.Type == ItemSourceType.Fishing) return ScoringConstants.AccessibilityFishing;
 		if (source.Type == ItemSourceType.ChestLoot) return ScoringConstants.AccessibilityChestLoot;
 		if (source.Type == ItemSourceType.Shimmer) return ScoringConstants.AccessibilityShimmer;
@@ -258,7 +259,7 @@ public static class SourcePriorityAnalyzer
 		ItemSourceType.BossDrop or ItemSourceType.BagDrop => LocationType.Boss,
 		ItemSourceType.NPCShop => LocationType.Shop,
 		ItemSourceType.Event => LocationType.Event,
-		ItemSourceType.ChestLoot or ItemSourceType.Gathering
+		ItemSourceType.ChestLoot or ItemSourceType.Gathering or ItemSourceType.Catching
 			or ItemSourceType.Shimmer or ItemSourceType.Fishing => LocationType.Exploration,
 		_ => LocationType.Biome
 	};

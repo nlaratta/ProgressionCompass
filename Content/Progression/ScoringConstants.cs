@@ -59,6 +59,7 @@ public static class ScoringConstants
 
 	public const int AcquireCostGathering = 0;
 	public const int AcquireCostShopAvailable = 1;
+	public const int AcquireCostCatching = 1;
 	public const int AcquireCostCommonDrop = 3;
 	public const int AcquireCostUncommonDrop = 6;
 	public const int AcquireCostBoss = 8;

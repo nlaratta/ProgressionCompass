@@ -319,6 +319,14 @@ public class DependencyResolver
 		int defaultIdx = acquireCost < bestRecipeCost && allAlternatives.Count > candidates.Count
 			? allAlternatives.Count - 1 : 0;
 
+		// Triviality override: when acquire would win, check whether the best recipe is
+		// "trivial" — short ingredient list, all ingredients passively acquirable (gather /
+		// catch / very common drop). For items like Torch (Wood + Gel → 3), buying from
+		// the Merchant has lower raw cost, but a human expects to craft from stuff they
+		// already grab during normal play. Force-prefer the recipe in that case.
+		if (defaultIdx >= candidates.Count && IsRecipeTrivial(candidates[0].node.Recipe))
+			defaultIdx = 0;
+
 		// Apply user preference
 		int chosenIdx = defaultIdx;
 		if (_recipePreferences.TryGetValue(itemType, out int prefIdx) && prefIdx >= 0 && prefIdx < allAlternatives.Count)
@@ -503,6 +511,7 @@ public class DependencyResolver
 			int cost = source.Type switch
 			{
 				ItemSourceType.Gathering => Progression.ScoringConstants.AcquireCostGathering,
+				ItemSourceType.Catching => Progression.ScoringConstants.AcquireCostCatching,
 				ItemSourceType.NPCShop => _worldContext.IsNpcAvailable(source.SourceEntityId)
 					? Progression.ScoringConstants.AcquireCostShopAvailable
 					: Progression.ScoringConstants.AcquireCostShopUnavailable,
@@ -542,6 +551,48 @@ public class DependencyResolver
 	}
 
 
+
+	/// <summary>
+	/// A recipe is "trivial" if it has few ingredients and each one has at least one
+	/// passive-acquisition source (gathering, catching, or very common drops). Such recipes
+	/// should beat shop/drop sources for the output even when raw costs say otherwise,
+	/// because the ingredients are things the player collects as a side-effect of normal play.
+	/// </summary>
+	private bool IsRecipeTrivial(Recipe recipe)
+	{
+		const int MaxTrivialIngredients = 3;
+		const int MinOutputForTrivial = 2;
+
+		if (recipe.createItem.stack < MinOutputForTrivial)
+			return false;
+
+		int ingredientCount = 0;
+		foreach (Item ing in recipe.requiredItem)
+		{
+			if (ing.type <= ItemID.None) continue;
+			ingredientCount++;
+			if (ingredientCount > MaxTrivialIngredients) return false;
+			if (!HasPassiveSource(ing.type)) return false;
+		}
+		return ingredientCount > 0;
+	}
+
+	/// <summary>
+	/// "Passive" = something you pick up while doing normal activities, without
+	/// deliberately farming it. Gathering and catching qualify; common mob drops
+	/// (>=10% rate) qualify because they accumulate from routine combat.
+	/// </summary>
+	private bool HasPassiveSource(int itemType)
+	{
+		var sources = _sourceSystem?.GetSources(itemType, _worldContext);
+		if (sources == null) return false;
+		foreach (var s in sources)
+		{
+			if (s.Type is ItemSourceType.Gathering or ItemSourceType.Catching) return true;
+			if (s.Type is ItemSourceType.NPCDrop && s.DropRate >= 0.1f) return true;
+		}
+		return false;
+	}
 
 	/// <summary>
 	/// Returns a cost penalty for recipes with conditions above the player's current tier.
