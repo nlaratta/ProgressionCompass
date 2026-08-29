@@ -4,53 +4,69 @@
     Location of the tModLoader install (the directory containing tMLMod.targets).
 
     Resolved in this order, first hit wins:
-      1. -p:tMLPath=/path/to/tModLoader  on the dotnet/msbuild command line
+      1. -p:tMLInstallDir=/path/to/tModLoader  on the dotnet/msbuild command line
       2. Directory.Build.props next to this file  (untracked; see .example)
-      3. tMLPath or TMLPATH environment variable
-      4. The default Steam install location for this OS
+      3. TML_INSTALL_DIR environment variable
+      4. tMLSteamPath, if something upstream already set it
+      5. The default Steam install location for this OS
+
+    NOTE: do not name this property tMLPath. tMLMod.targets defines tMLPath
+    itself as the tModLoader *dll filename* ("tModLoader.dll"), and tMLSteamPath
+    as the install directory. Reusing either name means the import silently
+    overwrites it partway through evaluation.
 
     Deliberately NOT an absolute path committed to the repo — that was the
     previous arrangement and it broke the build on every machine but one.
   -->
 
-  <PropertyGroup Condition="'$(tMLPath)' == ''">
-    <tMLPath Condition="'$(TMLPATH)' != ''">$(TMLPATH)</tMLPath>
+  <PropertyGroup Condition="'$(tMLInstallDir)' == ''">
+    <tMLInstallDir Condition="'$(TML_INSTALL_DIR)' != ''">$(TML_INSTALL_DIR)</tMLInstallDir>
+    <tMLInstallDir Condition="'$(tMLInstallDir)' == '' And '$(tMLSteamPath)' != ''">$(tMLSteamPath)</tMLInstallDir>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(tMLPath)' == ''">
+  <PropertyGroup Condition="'$(tMLInstallDir)' == ''">
     <_tMLHome Condition="'$(HOME)' != ''">$(HOME)</_tMLHome>
     <_tMLHome Condition="'$(_tMLHome)' == ''">$(USERPROFILE)</_tMLHome>
 
     <_tMLSteamMac>$(_tMLHome)/Library/Application Support/Steam/steamapps/common/tModLoader</_tMLSteamMac>
     <_tMLSteamLinux>$(_tMLHome)/.local/share/Steam/steamapps/common/tModLoader</_tMLSteamLinux>
-    <_tMLSteamLinuxFlatpak>$(_tMLHome)/.var/app/com.valvesoftware.Steam/data/Steam/steamapps/common/tModLoader</_tMLSteamLinuxFlatpak>
+    <_tMLSteamFlatpak>$(_tMLHome)/.var/app/com.valvesoftware.Steam/data/Steam/steamapps/common/tModLoader</_tMLSteamFlatpak>
     <_tMLSteamWin>C:\Program Files (x86)\Steam\steamapps\common\tModLoader</_tMLSteamWin>
 
-    <tMLPath Condition="Exists('$(_tMLSteamMac)/tMLMod.targets')">$(_tMLSteamMac)</tMLPath>
-    <tMLPath Condition="'$(tMLPath)' == '' And Exists('$(_tMLSteamLinux)/tMLMod.targets')">$(_tMLSteamLinux)</tMLPath>
-    <tMLPath Condition="'$(tMLPath)' == '' And Exists('$(_tMLSteamLinuxFlatpak)/tMLMod.targets')">$(_tMLSteamLinuxFlatpak)</tMLPath>
-    <tMLPath Condition="'$(tMLPath)' == '' And Exists('$(_tMLSteamWin)\tMLMod.targets')">$(_tMLSteamWin)</tMLPath>
+    <tMLInstallDir Condition="Exists('$(_tMLSteamMac)/tMLMod.targets')">$(_tMLSteamMac)</tMLInstallDir>
+    <tMLInstallDir Condition="'$(tMLInstallDir)' == '' And Exists('$(_tMLSteamLinux)/tMLMod.targets')">$(_tMLSteamLinux)</tMLInstallDir>
+    <tMLInstallDir Condition="'$(tMLInstallDir)' == '' And Exists('$(_tMLSteamFlatpak)/tMLMod.targets')">$(_tMLSteamFlatpak)</tMLInstallDir>
+    <tMLInstallDir Condition="'$(tMLInstallDir)' == '' And Exists('$(_tMLSteamWin)\tMLMod.targets')">$(_tMLSteamWin)</tMLInstallDir>
+  </PropertyGroup>
+
+  <!--
+    Captured before the import so the verification target below tests what we
+    actually resolved. tMLMod.targets reassigns several tML* properties during
+    evaluation, so checking one of those after the fact gives a false failure.
+  -->
+  <PropertyGroup>
+    <_tMLTargetsFile>$(tMLInstallDir)/tMLMod.targets</_tMLTargetsFile>
   </PropertyGroup>
 
   <!--
     tMLMod.targets supplies the target framework, language version, every
     Terraria/tModLoader assembly reference, and the .tmod packaging step.
     Guarded by Exists() so a missing install produces the actionable error
-    in VerifyTmlPath below rather than a raw "imported project not found".
+    in VerifyTmlInstallDir below rather than a raw "imported project not found".
   -->
-  <Import Project="$(tMLPath)/tMLMod.targets" Condition="Exists('$(tMLPath)/tMLMod.targets')" />
+  <Import Project="$(_tMLTargetsFile)" Condition="Exists('$(_tMLTargetsFile)')" />
 
   <PropertyGroup>
     <AssemblyName>ProgressionCompass</AssemblyName>
     <RootNamespace>ProgressionCompass</RootNamespace>
     <!-- Only used when the import above was skipped, so the project still
-         evaluates far enough to reach VerifyTmlPath and report why. -->
+         evaluates far enough to reach VerifyTmlInstallDir and report why. -->
     <TargetFramework Condition="'$(TargetFramework)' == ''">net8.0</TargetFramework>
   </PropertyGroup>
 
-  <Target Name="VerifyTmlPath" BeforeTargets="BeforeBuild"
-          Condition="!Exists('$(tMLPath)/tMLMod.targets')">
-    <Error Text="Could not locate tMLMod.targets (tMLPath resolved to: '$(tMLPath)').%0AThis project builds against a tModLoader install. Point it at one by either:%0A  1. Copying Directory.Build.props.example to Directory.Build.props and editing the path%0A  2. Building with: dotnet build -p:tMLPath=&quot;/path/to/tModLoader&quot;%0A  3. Setting the TMLPATH environment variable%0AUse the tModLoader install directory itself (the one containing tMLMod.targets).%0AOn macOS that is normally ~/Library/Application Support/Steam/steamapps/common/tModLoader%0AInstall tModLoader through Steam if it is not present." />
+  <Target Name="VerifyTmlInstallDir" BeforeTargets="BeforeBuild"
+          Condition="!Exists('$(_tMLTargetsFile)')">
+    <Error Text="Could not locate tMLMod.targets (looked for: '$(_tMLTargetsFile)').%0AThis project builds against a tModLoader install. Point it at one by either:%0A  1. Copying Directory.Build.props.example to Directory.Build.props and editing the path%0A  2. Building with: dotnet build -p:tMLInstallDir=&quot;/path/to/tModLoader&quot;%0A  3. Setting the TML_INSTALL_DIR environment variable%0AUse the tModLoader install directory itself (the one containing tMLMod.targets).%0AOn macOS that is normally ~/Library/Application Support/Steam/steamapps/common/tModLoader%0AInstall tModLoader through Steam if it is not present." />
   </Target>
 
 </Project>

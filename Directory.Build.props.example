@@ -16,6 +16,6 @@
 -->
 <Project>
   <PropertyGroup>
-    <tMLPath>/path/to/tModLoader</tMLPath>
+    <tMLInstallDir>/path/to/tModLoader</tMLInstallDir>
   </PropertyGroup>
 </Project>
