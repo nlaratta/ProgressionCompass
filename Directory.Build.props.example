@@ -1,0 +1,21 @@
+<!--
+  Per-machine tModLoader location.
+
+  Copy this file to Directory.Build.props (which is gitignored) and set the
+  path to your tModLoader install — the directory that contains tMLMod.targets.
+
+  macOS (Steam default):
+    ~/Library/Application Support/Steam/steamapps/common/tModLoader
+  Linux (Steam default):
+    ~/.local/share/Steam/steamapps/common/tModLoader
+  Windows (Steam default):
+    C:\Program Files (x86)\Steam\steamapps\common\tModLoader
+
+  If tModLoader is installed in one of those default locations, the .csproj
+  finds it on its own and you do not need this file at all.
+-->
+<Project>
+  <PropertyGroup>
+    <tMLPath>/path/to/tModLoader</tMLPath>
+  </PropertyGroup>
+</Project>

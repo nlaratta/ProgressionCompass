@@ -32,13 +32,32 @@ CraftPathOptimizer/
 ## Build
 
 ```bash
-cd CraftPathOptimizer
+cd ProgressionCompass
 dotnet build
 ```
 
-Requires .NET 8.0 SDK. tModLoader is at `/Volumes/DevDrive1/SteamLibrary/steamapps/common/tModLoader/`.
+Requires .NET 8.0 SDK and a tModLoader install.
 
-The `.csproj` imports `tMLMod.targets` which handles target framework (net8.0), C# 12, all assembly references, and `.tmod` packaging automatically. Do not add NuGet packages or manual assembly references.
+The `.csproj` locates tModLoader via the `tMLPath` property and imports its
+`tMLMod.targets`, which supplies the target framework (net8.0), C# 12, all
+assembly references, and `.tmod` packaging. Do not add NuGet packages or manual
+assembly references.
+
+`tMLPath` resolves in this order — the first hit wins:
+
+1. `dotnet build -p:tMLPath="/path/to/tModLoader"`
+2. `Directory.Build.props` next to the `.csproj` (untracked; copy
+   `Directory.Build.props.example` and edit the path)
+3. The `tMLPath` / `TMLPATH` environment variable
+4. The default Steam install location for the OS — on macOS,
+   `~/Library/Application Support/Steam/steamapps/common/tModLoader`
+
+If tModLoader is installed in the Steam default location, `dotnet build` works
+with no configuration. Otherwise the build fails with an error naming all three
+ways to point it at your install.
+
+**Do not commit an absolute path here.** The `.csproj` previously hardcoded one
+developer's Steam library, which meant it built on exactly one machine.
 
 ## Architecture
 
