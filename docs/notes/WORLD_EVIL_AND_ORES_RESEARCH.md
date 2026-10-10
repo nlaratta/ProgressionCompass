@@ -657,7 +657,7 @@ repeated for future research tasks.
 ```bash
 # Set up environment
 export DOTNET_ROOT=/opt/homebrew/Cellar/dotnet@8/8.0.125/libexec
-export PATH="$PATH:/Users/noahlaratta/.dotnet/tools"
+export PATH="$PATH:$HOME/.dotnet/tools"
 
 # Decompile a specific type
 ilspycmd /path/to/tModLoader.dll -t "Terraria.WorldGen" 2>&1 | head -200

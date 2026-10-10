@@ -1,13 +1,13 @@
-# Craft Path Optimizer — tModLoader Mod
+# Progression Compass — tModLoader Mod
 
-A client-side tModLoader mod that computes optimal crafting paths for any item, with automatic support for all loaded content mods (Calamity, Thorium, etc.).
+A client-side tModLoader mod (originally "Craft Path Optimizer", which is why many types are still named `CraftPath*`) that computes optimal crafting paths and progression recommendations, with automatic support for all loaded content mods (Calamity, Thorium, etc.). User-facing docs are in README.md; design notes and the issue list are in docs/notes/.
 
 ## Project Structure
 
 ```
-CraftPathOptimizer/
-  CraftPathOptimizer.cs              — Mod entry point, keybind registration
-  CraftPathOptimizer.csproj          — References tMLMod.targets (handles everything)
+ProgressionCompass/
+  ProgressionCompassMod.cs           — Mod entry point, keybind registration
+  ProgressionCompass.csproj          — References tMLMod.targets (handles everything)
   build.txt                          — side = Client, mod metadata
   Common/Systems/
     RecipeIndexSystem.cs             — Indexes Main.recipe[] into fast dictionaries (PostAddRecipes)

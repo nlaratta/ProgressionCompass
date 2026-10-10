@@ -2,4 +2,4 @@ displayName = Progression Compass
 author = NoahLaratta
 version = 0.1.0
 side = Client
-buildIgnore = *.csproj, *.user, *.sln, .vs/*, bin/*, obj/*, .git/*, .gitignore, PLAN.md, ISSUES.md
+buildIgnore = *.csproj, *.user, *.sln, .vs/*, bin/*, obj/*, .git/*, .gitignore, .github/*, docs/*, *.md, LICENSE, Directory.Build.props*

@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # The tModLoader release the mod is built against. Bump alongside the game.
+      TML_VERSION: v2026.08.3.0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+      - name: Download tModLoader
+        run: |
+          # Download outside the checkout: anything in the project folder gets packaged into the .tmod.
+          curl -fsSL -o "$RUNNER_TEMP/tml.zip" "https://github.com/tModLoader/tModLoader/releases/download/${TML_VERSION}/tModLoader.zip"
+          unzip -q "$RUNNER_TEMP/tml.zip" -d "$RUNNER_TEMP/tModLoader"
+      - name: Build and package the mod
+        run: dotnet build -p:tMLInstallDir="$RUNNER_TEMP/tModLoader"
+      - name: Upload .tmod
+        uses: actions/upload-artifact@v7
+        with:
+          name: ProgressionCompass.tmod
+          path: ~/.local/share/Terraria/tModLoader/Mods/ProgressionCompass.tmod
+          if-no-files-found: error
