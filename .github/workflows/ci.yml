@@ -19,8 +19,9 @@ jobs:
           dotnet-version: 8.0.x
       - name: Download tModLoader
         run: |
-          curl -fsSL -o tml.zip "https://github.com/tModLoader/tModLoader/releases/download/${TML_VERSION}/tModLoader.zip"
-          unzip -q tml.zip -d "$RUNNER_TEMP/tModLoader"
+          # Download outside the checkout: anything in the project folder gets packaged into the .tmod.
+          curl -fsSL -o "$RUNNER_TEMP/tml.zip" "https://github.com/tModLoader/tModLoader/releases/download/${TML_VERSION}/tModLoader.zip"
+          unzip -q "$RUNNER_TEMP/tml.zip" -d "$RUNNER_TEMP/tModLoader"
       - name: Build and package the mod
         run: dotnet build -p:tMLInstallDir="$RUNNER_TEMP/tModLoader"
       - name: Upload .tmod
@@ -28,4 +29,4 @@ jobs:
         with:
           name: ProgressionCompass.tmod
           path: ~/.local/share/Terraria/tModLoader/Mods/ProgressionCompass.tmod
-          if-no-files-found: warn
+          if-no-files-found: error
