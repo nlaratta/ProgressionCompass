@@ -153,4 +153,4 @@ In-game chat command `/cpo` with subcommands:
 
 ## Plan
 
-Full implementation plan with architecture, algorithm pseudocode, UI mockups, phase breakdown, risk register, and testing strategy is in `/Volumes/DevDrive1/Projects/Terraria/PLAN.md`.
+Full implementation plan with architecture, algorithm pseudocode, UI mockups, phase breakdown, risk register, and testing strategy is in `docs/notes/ORIGINAL_PLAN.md`.
